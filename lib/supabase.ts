@@ -2,18 +2,30 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 
 import type { AiFixOutput } from "./ai";
 import type { AuditFix, FixSeverity } from "./audit-fixes";
+import {
+  buildAuditCompetitorComparisonData,
+  type CompetitorSnapshot,
+} from "./competitor-comparison";
 import type { CrawlResult } from "./crawler";
 import type { ScoreBreakdown } from "./scorer";
 
 export interface AuditRecord {
   id: number;
   user_id: string | null;
+  project_id: number | null;
   url: string;
   url_key: string;
   crawl: CrawlResult;
   score: ScoreBreakdown;
   ai_output: AiFixOutput;
   fixes: AuditFix[];
+  score_value: number | null;
+  issues_found: number | null;
+  title_length: number | null;
+  h1_present: boolean | null;
+  word_count: number | null;
+  internal_links: number | null;
+  schema_present: boolean | null;
   created_at: string;
 }
 
@@ -50,6 +62,29 @@ export interface AuditHistoryEntry {
   internalLinkOpportunityCount: number;
   previousInternalLinkOpportunityCount: number | null;
   internalLinkOpportunityDelta: number | null;
+}
+
+export interface CompetitorSnapshotRecord {
+  id: number;
+  audit_id: number;
+  competitor_name: string;
+  competitor_url: string | null;
+  score: number;
+  title_length: number;
+  h1_present: boolean;
+  word_count: number;
+  internal_links: number;
+  schema_present: boolean;
+  created_at: string;
+}
+
+interface ProjectRecord {
+  id: number;
+  user_id: string | null;
+  name: string;
+  url: string;
+  url_key: string;
+  created_at: string;
 }
 
 interface CreateAuditInput {
@@ -94,6 +129,85 @@ export function normalizeUrlKey(url: string): string {
   return `${parsed.hostname.toLowerCase()}${pathname}`;
 }
 
+function buildProjectName(url: string): string {
+  const parsed = new URL(url);
+  return parsed.hostname.replace(/^www\./, "");
+}
+
+function buildCompetitorSnapshotRows(
+  auditId: number,
+  snapshots: CompetitorSnapshot[],
+): Array<{
+  audit_id: number;
+  competitor_name: string;
+  competitor_url: string | null;
+  score: number;
+  title_length: number;
+  h1_present: boolean;
+  word_count: number;
+  internal_links: number;
+  schema_present: boolean;
+}> {
+  return snapshots.map((snapshot) => ({
+    audit_id: auditId,
+    competitor_name: snapshot.name,
+    competitor_url: null,
+    score: snapshot.score,
+    title_length: snapshot.titleLength,
+    h1_present: snapshot.h1,
+    word_count: snapshot.wordCount,
+    internal_links: snapshot.internalLinks,
+    schema_present: snapshot.schema,
+  }));
+}
+
+async function findOrCreateProject(input: {
+  userId: string | null;
+  url: string;
+}): Promise<number> {
+  const supabase = getSupabaseServerClient();
+  const urlKey = normalizeUrlKey(input.url);
+
+  let query = supabase
+    .from("projects")
+    .select("id")
+    .eq("url_key", urlKey)
+    .limit(1);
+
+  if (input.userId) {
+    query = query.eq("user_id", input.userId);
+  } else {
+    query = query.is("user_id", null);
+  }
+
+  const { data: existing, error: existingError } = await query.maybeSingle();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (existing?.id) {
+    return existing.id as number;
+  }
+
+  const { data, error } = await supabase
+    .from("projects")
+    .insert({
+      user_id: input.userId,
+      name: buildProjectName(input.url),
+      url: input.url,
+      url_key: urlKey,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to create project.");
+  }
+
+  return data.id as number;
+}
+
 export function getSupabaseServerClient(): SupabaseClient {
   if (cachedClient) {
     return cachedClient;
@@ -130,16 +244,30 @@ export async function getUserFromAccessToken(token: string): Promise<User | null
 
 export async function createAuditRecord(input: CreateAuditInput): Promise<number> {
   const supabase = getSupabaseServerClient();
+  const projectId = await findOrCreateProject({
+    userId: input.userId,
+    url: input.url,
+  });
+  const competitorComparison = buildAuditCompetitorComparisonData(input.crawl, input.score);
+  const savedReportName = `${buildProjectName(input.url)} audit`;
   const { data, error } = await supabase
     .from("audits")
     .insert({
       user_id: input.userId,
+      project_id: projectId,
       url: input.url,
       url_key: normalizeUrlKey(input.url),
       crawl: input.crawl,
       score: input.score,
       ai_output: input.aiOutput,
       fixes: input.fixes,
+      score_value: normalizeStoredScore(input.score.total, input.score.maxScore),
+      issues_found: input.fixes.length,
+      title_length: input.crawl.title.trim().length,
+      h1_present: input.crawl.h1.trim().length > 0,
+      word_count: input.crawl.bodyText.split(/\s+/).filter(Boolean).length,
+      internal_links: input.crawl.internalLinkCount,
+      schema_present: input.crawl.hasJsonLd,
     })
     .select("id")
     .single();
@@ -148,14 +276,61 @@ export async function createAuditRecord(input: CreateAuditInput): Promise<number
     throw new Error(error?.message ?? "Failed to store audit.");
   }
 
-  return data.id as number;
+  const auditId = data.id as number;
+
+  const competitorRows = buildCompetitorSnapshotRows(
+    auditId,
+    competitorComparison.competitors,
+  );
+
+  if (competitorRows.length > 0) {
+    const { error: competitorError } = await supabase
+      .from("competitor_snapshots")
+      .insert(competitorRows);
+
+    if (competitorError) {
+      throw new Error(competitorError.message);
+    }
+  }
+
+  const { error: savedReportError } = await supabase
+    .from("saved_reports")
+    .insert({
+      audit_id: auditId,
+      user_id: input.userId,
+      report_name: savedReportName,
+    });
+
+  if (savedReportError) {
+    throw new Error(savedReportError.message);
+  }
+
+  const { error: usageEventError } = await supabase
+    .from("usage_events")
+    .insert({
+      user_id: input.userId,
+      project_id: projectId,
+      audit_id: auditId,
+      event_name: "audit_created",
+      metadata: {
+        url: input.url,
+        issueCount: input.fixes.length,
+        competitorCount: competitorRows.length,
+      },
+    });
+
+  if (usageEventError) {
+    throw new Error(usageEventError.message);
+  }
+
+  return auditId;
 }
 
 export async function getAuditRecordById(id: string): Promise<AuditRecord | null> {
   const supabase = getSupabaseServerClient();
   const { data, error } = await supabase
     .from("audits")
-    .select("id, user_id, url, url_key, crawl, score, ai_output, fixes, created_at")
+    .select("id, user_id, project_id, url, url_key, crawl, score, ai_output, fixes, score_value, issues_found, title_length, h1_present, word_count, internal_links, schema_present, created_at")
     .eq("id", id)
     .maybeSingle();
 
@@ -236,6 +411,25 @@ export async function listSavedReportsByUser(userId: string): Promise<SavedRepor
       totalFixCount,
     };
   });
+}
+
+export async function listCompetitorSnapshotsByAudit(
+  auditId: number,
+): Promise<CompetitorSnapshotRecord[]> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("competitor_snapshots")
+    .select(
+      "id, audit_id, competitor_name, competitor_url, score, title_length, h1_present, word_count, internal_links, schema_present, created_at",
+    )
+    .eq("audit_id", auditId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as CompetitorSnapshotRecord[] | null) ?? [];
 }
 
 export async function listAuditHistoryByUrl(userId: string, urlKey: string): Promise<AuditHistoryEntry[]> {

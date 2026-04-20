@@ -283,12 +283,20 @@ export function getExampleReportPayload(): ExampleReportPayload {
   const audit: AuditRecord = {
     id: 101,
     user_id: null,
+    project_id: null,
     url: EXAMPLE_URL,
     url_key: "www.rankshift.ai/example/local-seo-audit",
     crawl,
     score,
     ai_output: aiOutput,
     fixes,
+    score_value: score.total,
+    issues_found: fixes.length,
+    title_length: crawl.title.trim().length,
+    h1_present: crawl.h1.trim().length > 0,
+    word_count: crawl.bodyText.split(/\s+/).filter(Boolean).length,
+    internal_links: crawl.internalLinkCount,
+    schema_present: crawl.hasJsonLd,
     created_at: "2026-04-20T09:00:00.000Z",
   };
 

@@ -5,6 +5,7 @@ import {
   getAuditRecordById,
   getUserFromAccessToken,
   listAuditHistoryByUrl,
+  listCompetitorSnapshotsByAudit,
   listFixStatesByAudit,
 } from "@/lib/supabase";
 
@@ -49,11 +50,13 @@ export async function GET(
 
     const history = await listAuditHistoryByUrl(user.id, audit.url_key);
     const fixStates = await listFixStatesByAudit(user.id, audit.id);
+    const competitorSnapshots = await listCompetitorSnapshotsByAudit(audit.id);
 
     return NextResponse.json({
       audit,
       history,
       fixStates,
+      competitorSnapshots,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load report.";

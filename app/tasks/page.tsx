@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { TaskSystem } from "@/components/tasks/task-system";
 
 export const metadata: Metadata = {
-  title: "Tasks | AI SEO Audit",
+  title: "Tasks | Rankshift",
   description: "Actionable SEO task system with progress tracking and completion state.",
 };
 

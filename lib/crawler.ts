@@ -212,6 +212,229 @@ const PRIORITY_PATH_SIGNALS = [
   "/location/",
 ];
 
+const PLAYWRIGHT_LAUNCH_ARGS = ["--no-sandbox", "--disable-setuid-sandbox"];
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function stripHtml(value: string): string {
+  return decodeHtmlEntities(value.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function matchFirst(html: string, pattern: RegExp): string {
+  const match = html.match(pattern);
+  return match?.[1] ? stripHtml(match[1]) : "";
+}
+
+function matchMetaContent(html: string, name: string): string | null {
+  const patterns = [
+    new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']*)["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+name=["']${name}["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+property=["']${name}["'][^>]+content=["']([^"']*)["'][^>]*>`, "i"),
+    new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+property=["']${name}["'][^>]*>`, "i"),
+  ];
+
+  for (const pattern of patterns) {
+    const value = matchFirst(html, pattern);
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function extractAttribute(tag: string, attribute: string): string {
+  const doubleQuoted = tag.match(new RegExp(`${attribute}="([^"]*)"`, "i"));
+  if (doubleQuoted?.[1]) {
+    return decodeHtmlEntities(doubleQuoted[1].trim());
+  }
+
+  const singleQuoted = tag.match(new RegExp(`${attribute}='([^']*)'`, "i"));
+  if (singleQuoted?.[1]) {
+    return decodeHtmlEntities(singleQuoted[1].trim());
+  }
+
+  return "";
+}
+
+function extractFallbackDiscoveredUrls(html: string, currentUrl: string): string[] {
+  const hrefPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi;
+  const urls = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  while ((match = hrefPattern.exec(html)) !== null) {
+    const href = match[1]?.trim();
+
+    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
+      continue;
+    }
+
+    try {
+      urls.add(normalizeUrlForComparison(new URL(href, currentUrl).toString()));
+    } catch {
+      continue;
+    }
+  }
+
+  return Array.from(urls);
+}
+
+async function crawlPageWithBasicFetch(url: string): Promise<CrawlPageSnapshotResult> {
+  const startedAt = Date.now();
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (compatible; RankshiftBot/1.0; +https://rankshift-app.vercel.app)",
+      Accept: "text/html,application/xhtml+xml",
+    },
+  });
+  const html = await response.text();
+  const contentType = response.headers.get("content-type");
+  const normalizedUrl = normalizeUrlForComparison(response.url || url);
+  const title = matchFirst(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
+  const description = matchMetaContent(html, "description") ?? "";
+  const canonical = matchFirst(html, /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/i) || null;
+  const robots = matchMetaContent(html, "robots");
+  const h1Matches = Array.from(html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)).map((match) =>
+    stripHtml(match[1]),
+  );
+  const h2Matches = Array.from(html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)).map((match) =>
+    stripHtml(match[1]),
+  );
+  const h3Matches = Array.from(html.matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>/gi)).map((match) =>
+    stripHtml(match[1]),
+  );
+  const paragraphMatches = Array.from(html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi))
+    .map((match) => stripHtml(match[1]))
+    .filter(Boolean);
+  const listItemMatches = Array.from(html.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi))
+    .map((match) => stripHtml(match[1]))
+    .filter(Boolean);
+  const imageMatches = Array.from(html.matchAll(/<img\b[^>]*>/gi))
+    .map((match) => {
+      const tag = match[0];
+      const src = extractAttribute(tag, "src");
+      const alt = extractAttribute(tag, "alt");
+
+      if (!src) {
+        return null;
+      }
+
+      const fileName = getImageFileName(src);
+      const surroundingText = paragraphMatches[0] ?? title;
+      return {
+        src: new URL(src, normalizedUrl).toString(),
+        alt,
+        fileName,
+        surroundingText,
+        suggestedAlt: buildSuggestedAltText({
+          src,
+          surroundingText,
+        }),
+        isMissingAlt: alt.trim().length === 0,
+      };
+    })
+    .filter((image): image is CrawlImage => Boolean(image));
+  const bodyText = stripHtml(html);
+  const contentSections = [
+    ...paragraphMatches.map((text, index) => ({
+      label: `Paragraph ${index + 1}`,
+      text,
+      type: "paragraph" as const,
+    })),
+    ...listItemMatches.map((text, index) => ({
+      label: `List item ${index + 1}`,
+      text,
+      type: "list_item" as const,
+    })),
+  ];
+  const discoveredUrls = extractFallbackDiscoveredUrls(html, normalizedUrl);
+  const existingInternalLinks = discoveredUrls.map((href) => ({
+    href,
+    text: "",
+    normalizedUrl: href,
+  }));
+
+  return {
+    loadTimeMs: Date.now() - startedAt,
+    discoveredUrls,
+    snapshot: {
+      url: normalizedUrl,
+      title,
+      description,
+      h1: h1Matches[0] ?? "",
+      h2s: h2Matches,
+      headings: [
+        ...h1Matches.map((text) => ({ level: 1 as const, text })),
+        ...h2Matches.map((text) => ({ level: 2 as const, text })),
+        ...h3Matches.map((text) => ({ level: 3 as const, text })),
+      ],
+      images: imageMatches,
+      bodyText,
+      contentSections,
+      contentDebug: {
+        selectedContentSelector: "fetch-fallback",
+        totalHeadingCount: h1Matches.length + h2Matches.length + h3Matches.length,
+        paragraphCount: paragraphMatches.length,
+        listItemCount: listItemMatches.length,
+        extractedBlockCount: contentSections.length,
+        firstExtractedTextChunks: contentSections.map((section) => section.text).slice(0, 5),
+        fallbackStrategyUsed: true,
+        headingCounts: {
+          h1: h1Matches.length,
+          h2: h2Matches.length,
+          h3: h3Matches.length,
+          h4: 0,
+        },
+        headingTexts: {
+          h1: h1Matches,
+          h2: h2Matches,
+          h3: h3Matches,
+          h4: [],
+        },
+        hasMultipleVisibleH1: h1Matches.length > 1,
+        contextualBodyLinks: [],
+      },
+      existingInternalLinks,
+      canonical,
+      robots,
+      indexable: !(robots ?? "").toLowerCase().includes("noindex"),
+      statusCode: response.status,
+      contentType,
+      hasJsonLd: /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>/i.test(html),
+    },
+  };
+}
+
+async function launchChromiumBrowser(): Promise<Browser> {
+  return chromium.launch({
+    headless: true,
+    args: PLAYWRIGHT_LAUNCH_ARGS,
+  });
+}
+
+function shouldUseBasicFetchFallback(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return (
+    message.includes("Executable doesn't exist") ||
+    message.includes("browserType.launch") ||
+    message.includes("Failed to launch") ||
+    message.includes("spawn") ||
+    message.includes("ENOENT")
+  );
+}
+
 function normalizeUrlForComparison(url: string): string {
   const parsed = new URL(url);
   parsed.hash = "";
@@ -453,7 +676,7 @@ export async function crawlPage(url: string): Promise<CrawlResult> {
   let browser: Browser | null = null;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromiumBrowser();
     const { snapshot, loadTimeMs } = await crawlPageSnapshot(browser, url);
 
     return {
@@ -478,6 +701,32 @@ export async function crawlPage(url: string): Promise<CrawlResult> {
       contentType: snapshot.contentType,
     };
   } catch (error) {
+    if (shouldUseBasicFetchFallback(error)) {
+      const { snapshot, loadTimeMs } = await crawlPageWithBasicFetch(url);
+
+      return {
+        url: snapshot.url,
+        title: snapshot.title,
+        description: snapshot.description,
+        headings: snapshot.headings,
+        images: snapshot.images,
+        canonical: snapshot.canonical,
+        robots: snapshot.robots,
+        internalLinkCount: snapshot.existingInternalLinks.length,
+        hasJsonLd: snapshot.hasJsonLd,
+        loadTimeMs,
+        bodyText: snapshot.bodyText,
+        h1: snapshot.h1,
+        h2s: snapshot.h2s,
+        contentSections: snapshot.contentSections,
+        contentDebug: snapshot.contentDebug,
+        existingInternalLinks: snapshot.existingInternalLinks,
+        indexable: snapshot.indexable,
+        statusCode: snapshot.statusCode,
+        contentType: snapshot.contentType,
+      };
+    }
+
     const message = error instanceof Error ? error.message : "Unknown crawl error.";
     throw new Error(`Unable to crawl page: ${message}`);
   } finally {
@@ -504,7 +753,7 @@ export async function crawlSiteForInternalLinking(
     const visited = new Set<string>();
     const pages: SitePageSnapshot[] = [];
 
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromiumBrowser();
 
     while (queue.length > 0 && pages.length < maxPages) {
       const nextUrl = queue.shift();
@@ -555,6 +804,13 @@ export async function crawlSiteForInternalLinking(
     );
 
     return pages;
+  } catch (error) {
+    if (shouldUseBasicFetchFallback(error)) {
+      const { snapshot } = await crawlPageWithBasicFetch(startUrl);
+      return [snapshot];
+    }
+
+    throw error;
   } finally {
     if (browser) {
       await browser.close();

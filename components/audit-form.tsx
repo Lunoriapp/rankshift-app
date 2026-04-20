@@ -12,7 +12,7 @@ interface AuditFormProps {
 }
 
 export function AuditForm({
-  buttonLabel = "Run SEO Audit",
+  buttonLabel = "Run Rankshift audit",
   className,
 }: AuditFormProps) {
   const router = useRouter();

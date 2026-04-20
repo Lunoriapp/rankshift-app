@@ -1,5 +1,10 @@
+import type { CrawlResult } from "./crawler";
+import type { ScoreBreakdown } from "./scorer";
+import type { CompetitorSnapshotRecord } from "./supabase";
+
 export interface CompetitorSnapshot {
   name: string;
+  url?: string | null;
   score: number;
   titleLength: number;
   h1: boolean;
@@ -60,6 +65,128 @@ export const competitorComparisonData: CompetitorComparisonData = {
     },
   ],
 };
+
+function getWordCount(bodyText: string): number {
+  return bodyText.split(/\s+/).filter(Boolean).length;
+}
+
+function createMockCompetitor(input: {
+  name: string;
+  url: string;
+  score: number;
+  titleLength: number;
+  h1: boolean;
+  wordCount: number;
+  internalLinks: number;
+  schema: boolean;
+}): CompetitorSnapshot {
+  return input;
+}
+
+function buildFallbackCompetitorsFromUserMetrics(input: {
+  url: string;
+  score: number;
+  wordCount: number;
+  internalLinks: number;
+}): CompetitorComparisonData["competitors"] {
+  const source = new URL(input.url);
+  const path = source.pathname === "/" ? "/service-page" : source.pathname;
+
+  return [
+    createMockCompetitor({
+      name: "Competitor A",
+      url: `https://competitor-a.example${path}`,
+      score: Math.min(Math.max(input.score, 42) + 18, 92),
+      titleLength: 58,
+      h1: true,
+      wordCount: Math.max(input.wordCount + 650, 1200),
+      internalLinks: Math.max(input.internalLinks + 6, 8),
+      schema: true,
+    }),
+    createMockCompetitor({
+      name: "Competitor B",
+      url: `https://competitor-b.example${path}`,
+      score: Math.min(Math.max(input.score, 42) + 13, 88),
+      titleLength: 61,
+      h1: true,
+      wordCount: Math.max(input.wordCount + 450, 1050),
+      internalLinks: Math.max(input.internalLinks + 4, 7),
+      schema: true,
+    }),
+  ];
+}
+
+export function buildAuditCompetitorComparisonData(
+  crawl: CrawlResult,
+  score: ScoreBreakdown,
+): CompetitorComparisonData {
+  const userWordCount = getWordCount(crawl.bodyText);
+
+  return {
+    user: {
+      name: "Your Page",
+      url: crawl.url,
+      score: score.total,
+      titleLength: crawl.title.trim().length,
+      h1: crawl.h1.trim().length > 0,
+      wordCount: getWordCount(crawl.bodyText),
+      internalLinks: crawl.internalLinkCount,
+      schema: crawl.hasJsonLd,
+    },
+    competitors: buildFallbackCompetitorsFromUserMetrics({
+      url: crawl.url,
+      score: score.total,
+      wordCount: userWordCount,
+      internalLinks: crawl.internalLinkCount,
+    }),
+  };
+}
+
+export function buildCompetitorComparisonDataFromAudit(
+  input: {
+    score: number;
+    titleLength: number;
+    h1Present: boolean;
+    wordCount: number;
+    internalLinks: number;
+    schemaPresent: boolean;
+    url: string;
+  },
+  snapshots: CompetitorSnapshotRecord[],
+): CompetitorComparisonData {
+  const competitors = snapshots.slice(0, 2).map((snapshot) => ({
+    name: snapshot.competitor_name,
+    url: snapshot.competitor_url,
+    score: snapshot.score,
+    titleLength: snapshot.title_length,
+    h1: snapshot.h1_present,
+    wordCount: snapshot.word_count,
+    internalLinks: snapshot.internal_links,
+    schema: snapshot.schema_present,
+  })) as CompetitorComparisonData["competitors"];
+
+  return {
+    user: {
+      name: "Your Page",
+      url: input.url,
+      score: input.score,
+      titleLength: input.titleLength,
+      h1: input.h1Present,
+      wordCount: input.wordCount,
+      internalLinks: input.internalLinks,
+      schema: input.schemaPresent,
+    },
+    competitors:
+      competitors.length === 2
+        ? competitors
+        : buildFallbackCompetitorsFromUserMetrics({
+            url: input.url,
+            score: input.score,
+            wordCount: input.wordCount,
+            internalLinks: input.internalLinks,
+          }),
+  };
+}
 
 function formatBoolean(value: boolean): string {
   return value ? "Yes" : "No";

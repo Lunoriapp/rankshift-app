@@ -1,12 +1,13 @@
 {
-  "name": "ai-seo-audit-system",
+  "name": "rankshift-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "playwright install chromium"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

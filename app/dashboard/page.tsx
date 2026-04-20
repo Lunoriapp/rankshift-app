@@ -4,7 +4,7 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { mockWorkspaceDashboard } from "@/lib/mock-dashboard";
 
 export const metadata: Metadata = {
-  title: "Workspace Dashboard | AI SEO Audit",
+  title: "Workspace Dashboard | Rankshift",
   description: "Workspace-level SEO dashboard shell with premium KPI cards and action panels.",
 };
 

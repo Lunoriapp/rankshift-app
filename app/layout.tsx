@@ -3,8 +3,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI SEO Audit",
-  description: "AI-powered SEO audit tool",
+  title: "Rankshift",
+  description: "Rankshift helps teams find what to fix, where to link, and how to improve SEO faster.",
 };
 
 interface RootLayoutProps {

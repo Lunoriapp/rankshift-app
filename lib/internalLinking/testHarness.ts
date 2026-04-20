@@ -208,7 +208,10 @@ export function logInternalLinkHarnessResult(result: InternalLinkHarnessResult) 
 export async function runInternalLinkingDebugHarness(
   input: InternalLinkHarnessInput,
 ): Promise<InternalLinkHarnessResult> {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
 
   try {
     const page = await browser.newPage();
