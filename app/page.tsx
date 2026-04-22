@@ -110,11 +110,11 @@ export default function HomePage() {
                 AI-powered SEO audits
               </p>
               <h1 className="mt-5 max-w-[16ch] text-5xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:text-6xl">
-                Turn any page into clear{" "}
-                <span className="text-indigo-600">SEO actions</span> in seconds
+                Grow rankings with{" "}
+                <span className="text-indigo-600">SEO + AI visibility</span>
               </h1>
               <p className="mt-5 max-w-xl text-2xl leading-8 text-slate-600">
-                Find issues, get fixes, discover internal links, and know exactly what to do next.
+                See what is limiting performance, add the right internal links, and improve how your page appears in modern AI-driven search results.
               </p>
               <div id="start-audit">
                 <AuditForm
@@ -133,7 +133,7 @@ export default function HomePage() {
               <div className="grid gap-4 p-2 pt-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-slate-500">Audit overview for</p>
+                    <p className="text-sm font-medium text-slate-500">What you'll get from this scan</p>
                     <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
                       yourwebsite.com
                     </p>

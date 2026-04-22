@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 const AUDIT_STEPS = [
-  { label: "Scanning page structure", startsAt: 0 },
-  { label: "Checking metadata", startsAt: 1 },
-  { label: "Reviewing headings", startsAt: 2 },
-  { label: "Analysing images", startsAt: 3 },
-  { label: "Measuring performance", startsAt: 4 },
-  { label: "Looking for internal linking opportunities", startsAt: 5 },
-  { label: "Generating rewrite suggestions", startsAt: 6 },
+  { label: "Checking page structure and content clarity", startsAt: 0 },
+  { label: "Reviewing title, headings, and section flow", startsAt: 1 },
+  { label: "Evaluating internal links and topic connections", startsAt: 2 },
+  { label: "Checking AI-readiness signals for extraction", startsAt: 3 },
+  { label: "Scoring page visibility opportunities", startsAt: 4 },
+  { label: "Building practical fixes and next actions", startsAt: 5 },
+  { label: "Preparing your action-ready report", startsAt: 6 },
 ] as const;
 
 interface AuditLoadingStateProps {
@@ -57,11 +57,10 @@ export function AuditLoadingState({ isVisible }: AuditLoadingStateProps) {
             Audit in progress
           </p>
           <h3 className="mt-2 text-xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-            Running a full SEO audit across the page
+            Running your SEO and AI visibility scan
           </h3>
           <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-            We are moving through the audit steps now. The active stage will animate as the audit
-            progresses.
+            We are checking page structure, internal links, and AI-readiness signals to build a clear action plan.
           </p>
         </div>
 

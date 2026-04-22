@@ -114,6 +114,7 @@ export function AuditForm({
         <span>No signup required</span>
         <span>Results in under 10 seconds</span>
         <span>Works on any website</span>
+        <span>Built for modern search and AI</span>
       </div>
       {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
       <AuditLoadingState isVisible={isSubmitting} />
