@@ -9,6 +9,7 @@ import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 interface AuditFormProps {
   buttonLabel?: string;
   className?: string;
+  compact?: boolean;
 }
 
 const MIN_LOADING_STATE_MS = 6500;
@@ -22,6 +23,7 @@ function sleep(ms: number): Promise<void> {
 export function AuditForm({
   buttonLabel = "Run Rankshift audit",
   className,
+  compact = false,
 }: AuditFormProps) {
   const router = useRouter();
   const [url, setUrl] = useState("");
@@ -87,7 +89,7 @@ export function AuditForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className={`mt-8 w-full max-w-2xl ${className ?? ""}`}
+      className={`${compact ? "mt-4" : "mt-8"} w-full max-w-2xl ${className ?? ""}`}
     >
       <div className="flex w-full items-center overflow-hidden rounded-2xl border border-indigo-300 bg-white shadow-[0_12px_28px_-20px_rgba(67,56,202,0.55)]">
         <label htmlFor="url" className="sr-only">
@@ -99,18 +101,20 @@ export function AuditForm({
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           placeholder="Enter your URL (e.g. yourwebsite.com)"
-          className="h-14 w-full bg-white px-5 text-slate-900 outline-none placeholder:text-slate-400"
+          className={`${compact ? "h-12 text-sm" : "h-14"} w-full bg-white px-5 text-slate-900 outline-none placeholder:text-slate-400`}
           required
         />
         <button
           type="submit"
           disabled={isSubmitting}
-          className="h-14 shrink-0 bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-7 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+          className={`${compact ? "h-12 px-6" : "h-14 px-7"} shrink-0 bg-[linear-gradient(135deg,#4f46e5,#4338ca)] text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60`}
         >
           {isSubmitting ? "Running..." : buttonLabel}
         </button>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
+      <div
+        className={`${compact ? "mt-2 gap-x-4 text-xs" : "mt-3 gap-x-5 text-sm"} flex flex-wrap items-center gap-y-2 text-slate-500`}
+      >
         <span>No signup required</span>
         <span>Results in under 10 seconds</span>
         <span>Works on any website</span>
