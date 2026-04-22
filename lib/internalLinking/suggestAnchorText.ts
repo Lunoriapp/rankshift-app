@@ -15,6 +15,10 @@ export interface AnchorSuggestion {
   phraseWeight: number;
 }
 
+interface SuggestAnchorTextOptions {
+  preferredPhrases?: TopicPhraseCandidate[];
+}
+
 interface RankedAnchorCandidate extends AnchorSuggestion {
   score: number;
 }
@@ -184,13 +188,34 @@ function buildFallbackAnchor(target: SitePageTopicProfile): string {
 export function suggestAnchorText(
   sourceText: string,
   target: SitePageTopicProfile,
+  options: SuggestAnchorTextOptions = {},
 ): AnchorSuggestion | null {
   const titleTopicTokens = new Set(tokenizeStemmed(target.title));
   const h1TopicTokens = new Set(tokenizeStemmed(target.h1));
   const primaryTopicTokens = new Set(tokenizeStemmed(target.primaryTopic));
   const candidates: AnchorSuggestion[] = [];
+  const targetSignalText = `${target.title} ${target.h1} ${target.primaryTopic}`;
+  const preferredPhrases = (options.preferredPhrases ?? [])
+    .filter((phrase) => !isWeakTopicPhrase(phrase.phrase))
+    .filter((phrase) => phraseWordOverlap(targetSignalText, phrase.phrase) >= 0.55)
+    .map((phrase) => ({
+      ...phrase,
+      weight: Math.max(0.92, phrase.weight),
+    }));
+  const phrasePool = [...preferredPhrases, ...target.topicPhrases];
+  const seenPhrases = new Set<string>();
+  const uniquePhrasePool = phrasePool.filter((phrase) => {
+    const key = phrase.phrase.trim().toLowerCase();
 
-  for (const phrase of target.topicPhrases) {
+    if (seenPhrases.has(key)) {
+      return false;
+    }
+
+    seenPhrases.add(key);
+    return true;
+  });
+
+  for (const phrase of uniquePhrasePool) {
     if (isWeakTopicPhrase(phrase.phrase)) {
       continue;
     }
@@ -217,7 +242,7 @@ export function suggestAnchorText(
     }
   }
 
-  for (const phrase of target.topicPhrases) {
+  for (const phrase of uniquePhrasePool) {
     if (isWeakTopicPhrase(phrase.phrase)) {
       continue;
     }

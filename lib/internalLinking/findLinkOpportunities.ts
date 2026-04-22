@@ -355,6 +355,16 @@ export function findLinkOpportunities(
 
     const targetEvaluations: InternalLinkDebugEntry["targetEvaluations"] = [];
     let sourceOpportunities = 0;
+    const preferredSourcePhrases = [
+      ...source.topicPhrases
+        .filter((phrase) => phrase.source === "title" || phrase.source === "h1")
+        .slice(0, 10),
+      {
+        phrase: source.primaryTopic,
+        source: "h1" as const,
+        weight: 1,
+      },
+    ];
 
     for (const target of topicProfiles) {
       diagnostics.pairEvaluations += 1;
@@ -410,7 +420,9 @@ export function findLinkOpportunities(
           continue;
         }
 
-        const suggestion = suggestAnchorText(context.text, target);
+        const suggestion = suggestAnchorText(context.text, target, {
+          preferredPhrases: preferredSourcePhrases,
+        });
 
         if (!suggestion) {
           diagnostics.droppedByFilter.anchorMatchOrSimilarity += 1;
