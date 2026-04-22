@@ -31,22 +31,22 @@ const topFeatureStrip = [
 
 const outcomes = [
   {
-    value: "+21",
+    value: "Clear",
     valueClassName: "text-5xl sm:text-6xl",
-    title: "Average score increase",
-    description: "After implementing recommended fixes",
+    title: "Priority fixes first",
+    description: "Resolve the issues most likely to hold back visibility",
   },
   {
-    value: "3.4x",
+    value: "Natural",
     valueClassName: "text-5xl sm:text-6xl",
-    title: "More internal links added",
-    description: "Improve site structure and topical relevance",
+    title: "Internal links from real content",
+    description: "Use existing phrases on the page as clean anchor text",
   },
   {
-    value: "Better Rankings",
-    valueClassName: "text-3xl sm:text-4xl",
-    title: "Stronger pages rank higher",
-    description: "More visibility. More traffic. More results.",
+    value: "Stronger",
+    valueClassName: "text-4xl sm:text-5xl",
+    title: "Visibility across search surfaces",
+    description: "Improve coverage in classic results, AI overviews, and assistants",
   },
 ];
 
@@ -110,11 +110,11 @@ export default function HomePage() {
                 AI-powered SEO audits
               </p>
               <h1 className="mt-5 max-w-[16ch] text-5xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:text-6xl">
-                Grow rankings with{" "}
-                <span className="text-indigo-600">SEO + AI visibility</span>
+                Fix pages for{" "}
+                <span className="text-indigo-600">Google and AI answers</span>
               </h1>
               <p className="mt-5 max-w-xl text-2xl leading-8 text-slate-600">
-                See what is limiting performance, add the right internal links, and improve how your page appears in modern AI-driven search results.
+                Get a clear action plan to improve rankings, add better internal links, and increase visibility in AI overviews and modern search.
               </p>
               <div id="start-audit">
                 <AuditForm
@@ -122,6 +122,9 @@ export default function HomePage() {
                   className="max-w-[560px]"
                 />
               </div>
+              <p className="mt-2 text-sm text-slate-500">
+                Built to improve visibility in AI overviews and modern search experiences.
+              </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)]">
@@ -247,7 +250,7 @@ export default function HomePage() {
                 Contextual. Relevant. Actionable.
               </p>
               <h3 className="mt-3 text-5xl font-semibold tracking-tight text-slate-950">
-                Internal link suggestions that make sense
+                Internal links from your existing page content
               </h3>
               <p className="mt-4 text-xl leading-8 text-slate-600">
                 We show you the exact words to link, the page to link to, and why it matters.
@@ -265,7 +268,7 @@ export default function HomePage() {
         <section className="grid gap-6 px-6 pb-8 sm:px-8 lg:grid-cols-[1.6fr_1fr] lg:px-10">
           <div className="rounded-2xl bg-[#f5f4ff] p-5">
             <p className="text-sm font-semibold uppercase tracking-[0.13em] text-indigo-600">
-              Real results, real impact
+              Practical outcomes after implementation
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               {outcomes.map((item) => (
@@ -298,10 +301,10 @@ export default function HomePage() {
         <section className="px-6 pb-8 sm:px-8 lg:px-10">
           <div className="rounded-2xl bg-[#f1f0ff] px-4 py-8 text-center sm:px-8">
             <h2 className="text-6xl font-semibold tracking-tight text-slate-950">
-              Ready to improve your rankings?
+              Run a scan and get your next SEO + AI actions
             </h2>
             <p className="mt-2 text-xl text-slate-600">
-              Run your first audit now. No signup. Just results.
+              Enter any URL to get fix priorities, internal link opportunities, and AI visibility improvements in seconds.
             </p>
             <div className="mx-auto max-w-2xl">
               <AuditForm buttonLabel="Run Audit ->" className="mx-auto" />
