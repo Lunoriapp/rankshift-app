@@ -30,9 +30,9 @@ export function DashboardShell({ data }: DashboardShellProps) {
   const { workspace, healthSummary, scoreDistribution, actionQueue, recentHighlights } = data;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(178,245,234,0.4),_transparent_32%),linear-gradient(180deg,_#f7f9fc_0%,_#eef4f2_100%)] px-5 py-8 text-slate-900 sm:px-8 lg:px-10 lg:py-10">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <section className="overflow-hidden rounded-[36px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(239,248,244,0.84))] p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur sm:p-8 lg:p-10">
+    <main className="min-h-screen bg-[#f6f7fb] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-6 rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)] sm:p-8">
+        <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-[#f8f9fd] p-6 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-8 lg:p-10">
           <div className="grid gap-8 lg:grid-cols-[1.4fr_0.9fr]">
             <div>
               <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
@@ -76,7 +76,7 @@ export function DashboardShell({ data }: DashboardShellProps) {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-slate-200/70 bg-slate-950 p-6 text-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <div className="rounded-[20px] border border-slate-200/70 bg-slate-950 p-6 text-slate-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-300/90">
                 Recommended next move
               </p>
@@ -129,7 +129,7 @@ export function DashboardShell({ data }: DashboardShellProps) {
               {recentHighlights.map((item) => (
                 <article
                   key={item.label}
-                  className="rounded-[24px] border border-slate-200/70 bg-slate-50/80 p-5"
+                  className="rounded-[18px] border border-slate-200/70 bg-slate-50/80 p-5"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -155,7 +155,7 @@ export function DashboardShell({ data }: DashboardShellProps) {
             {actionQueue.map((item) => (
               <article
                 key={item.title}
-                className="rounded-[28px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] p-5"
+                className="rounded-[20px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.92))] p-5"
               >
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold tracking-tight text-slate-950">

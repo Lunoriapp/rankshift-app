@@ -27,16 +27,19 @@ const topFeatureStrip = [
 const outcomes = [
   {
     value: "+21",
+    valueClassName: "text-5xl sm:text-6xl",
     title: "Average score increase",
     description: "After implementing recommended fixes",
   },
   {
     value: "3.4x",
+    valueClassName: "text-5xl sm:text-6xl",
     title: "More internal links added",
     description: "Improve site structure and topical relevance",
   },
   {
     value: "Better Rankings",
+    valueClassName: "text-3xl sm:text-4xl",
     title: "Stronger pages rank higher",
     description: "More visibility. More traffic. More results.",
   },
@@ -262,7 +265,11 @@ export default function HomePage() {
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               {outcomes.map((item) => (
                 <div key={item.title} className="rounded-xl bg-white px-4 py-4">
-                  <p className="text-5xl font-semibold tracking-tight text-slate-950">{item.value}</p>
+                  <p
+                    className={`${item.valueClassName} font-semibold leading-tight tracking-tight text-slate-950`}
+                  >
+                    {item.value}
+                  </p>
                   <p className="mt-2 text-lg font-semibold text-slate-900">{item.title}</p>
                   <p className="mt-1 text-sm text-slate-600">{item.description}</p>
                 </div>

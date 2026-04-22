@@ -28,9 +28,9 @@ export function WorkspacePageListShell({ pages }: WorkspacePageListShellProps) {
   const healthyCount = pages.filter((page) => page.priority === "good").length;
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f8fafc_36%,#eef4ff_100%)] px-4 py-8 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <section className="rounded-[2rem] border border-slate-200/80 bg-white p-8 shadow-[0_20px_60px_-32px_rgba(15,23,42,0.35)]">
+    <main className="min-h-screen bg-[#f6f7fb] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1180px] flex-col gap-6 rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)] sm:p-8">
+        <section className="rounded-[24px] border border-slate-200 bg-[#f8f9fd] p-8 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)]">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -74,7 +74,7 @@ export function WorkspacePageListShell({ pages }: WorkspacePageListShellProps) {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-slate-200/80 bg-white/90 p-5 shadow-[0_20px_60px_-36px_rgba(15,23,42,0.3)] sm:p-6">
+        <section className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.3)] sm:p-6">
           <div className="mb-4 hidden grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)] items-center border-b border-slate-200/80 px-2 pb-4 lg:grid">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
               Page

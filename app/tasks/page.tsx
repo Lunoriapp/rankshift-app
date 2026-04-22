@@ -17,12 +17,12 @@ interface TasksPageProps {
 
 export default function TasksPage({ searchParams }: TasksPageProps) {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(178,245,234,0.38),_transparent_30%),linear-gradient(180deg,_#f7f9fc_0%,_#eef4f2_100%)] px-5 py-8 text-slate-900 sm:px-8 lg:px-10 lg:py-10">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <section className="overflow-hidden rounded-[36px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(239,248,244,0.84))] p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur sm:p-8 lg:p-10">
+    <main className="min-h-screen bg-[#f6f7fb] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-6 rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)] sm:p-8">
+        <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-[#f8f9fd] p-6 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-8 lg:p-10">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              <div className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                 Task system
               </div>
               <h1 className="mt-5 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
