@@ -3,7 +3,12 @@ import Link from "next/link";
 import { AuditForm } from "@/components/audit-form";
 import { AuthBootstrap } from "@/components/auth-bootstrap";
 
-const navItems = ["Features", "How it Works", "Pricing", "Resources"];
+const navItems = [
+  { label: "Features", href: "/features" },
+  { label: "How it Works", href: "/how-it-works" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "Resources", href: "/resources" },
+];
 
 const topFeatureStrip = [
   {
@@ -76,9 +81,9 @@ export default function HomePage() {
             </div>
             <nav className="hidden items-center gap-9 text-sm font-medium text-slate-600 lg:flex">
               {navItems.map((item) => (
-                <a key={item} href="#" className="transition hover:text-slate-900">
-                  {item}
-                </a>
+                <Link key={item.label} href={item.href} className="transition hover:text-slate-900">
+                  {item.label}
+                </Link>
               ))}
             </nav>
             <div className="flex items-center gap-4">
@@ -308,19 +313,19 @@ export default function HomePage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="font-semibold text-slate-900">Rankshift</p>
             <div className="flex flex-wrap items-center gap-5">
-              <Link href="#" className="hover:text-slate-900">
+              <Link href="/features" className="hover:text-slate-900">
                 Features
               </Link>
-              <Link href="#" className="hover:text-slate-900">
+              <Link href="/how-it-works" className="hover:text-slate-900">
                 How it Works
               </Link>
-              <Link href="#" className="hover:text-slate-900">
+              <Link href="/pricing" className="hover:text-slate-900">
                 Pricing
               </Link>
-              <Link href="#" className="hover:text-slate-900">
+              <Link href="/resources" className="hover:text-slate-900">
                 Resources
               </Link>
-              <Link href="#" className="hover:text-slate-900">
+              <Link href="/reports" className="hover:text-slate-900">
                 Contact
               </Link>
             </div>
