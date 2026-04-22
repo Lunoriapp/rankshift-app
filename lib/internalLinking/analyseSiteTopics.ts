@@ -6,8 +6,10 @@ import {
   dedupeStrings,
   isCommercialPage,
   normalizeWhitespace,
+  normalizePhrase,
   repeatedBodyPhrases,
   splitIntoSentences,
+  tokenize,
   titleParts,
   topTermsFromBody,
 } from "./shared";
@@ -127,7 +129,7 @@ export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfi
     }
   }
 
-  return pages
+  const profiles = pages
     .filter(
       (page) =>
         page.indexable &&
@@ -154,4 +156,50 @@ export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfi
       commerciallyImportant: isCommercialPage(page),
       indexable: page.indexable,
     }));
+
+  const phrasePageFrequency = new Map<string, number>();
+
+  for (const profile of profiles) {
+    const seenOnPage = new Set<string>();
+
+    for (const phrase of profile.topicPhrases) {
+      const key = normalizePhrase(phrase.phrase);
+
+      if (!key || seenOnPage.has(key)) {
+        continue;
+      }
+
+      seenOnPage.add(key);
+      phrasePageFrequency.set(key, (phrasePageFrequency.get(key) ?? 0) + 1);
+    }
+  }
+
+  const profileCount = profiles.length;
+
+  return profiles.map((profile) => {
+    const primaryTopicTokens = new Set(tokenize(profile.primaryTopic));
+    const filteredTopicPhrases = profile.topicPhrases.filter((phrase) => {
+      const key = normalizePhrase(phrase.phrase);
+      const frequency = phrasePageFrequency.get(key) ?? 0;
+      const frequencyRatio = profileCount > 0 ? frequency / profileCount : 0;
+      const appearsTooWidely = frequency >= 3 && frequencyRatio >= 0.45;
+
+      if (!appearsTooWidely) {
+        return true;
+      }
+
+      const phraseTokens = tokenize(phrase.phrase);
+      const overlap = phraseTokens.filter((token) => primaryTopicTokens.has(token)).length;
+
+      return overlap >= 2;
+    });
+
+    return {
+      ...profile,
+      topicPhrases:
+        filteredTopicPhrases.length > 0
+          ? filteredTopicPhrases
+          : profile.topicPhrases.slice(0, 8),
+    };
+  });
 }

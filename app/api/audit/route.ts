@@ -166,7 +166,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             `${entry.sourceUrl}|${entry.targetUrl}|${entry.suggestedAnchor.toLowerCase()}`,
         ),
       );
-      const merged = [
+      const mergedRaw = [
         ...sourceOnlyReport.opportunities,
         ...fullReport.opportunities.filter(
           (entry) =>
@@ -174,7 +174,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               `${entry.sourceUrl}|${entry.targetUrl}|${entry.suggestedAnchor.toLowerCase()}`,
             ),
         ),
-      ].slice(0, 48);
+      ];
+      const bestBySourceAnchor = new Map<string, (typeof mergedRaw)[number]>();
+
+      for (const entry of mergedRaw) {
+        const anchorKey = `${entry.sourceUrl}|${entry.suggestedAnchor.toLowerCase()}`;
+        const existing = bestBySourceAnchor.get(anchorKey);
+
+        if (!existing || entry.confidenceScore > existing.confidenceScore) {
+          bestBySourceAnchor.set(anchorKey, entry);
+        }
+      }
+
+      const merged = [...bestBySourceAnchor.values()]
+        .sort((a, b) => b.confidenceScore - a.confidenceScore)
+        .slice(0, 48);
 
       crawl.internalLinking = {
         ...fullReport,
