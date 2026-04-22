@@ -12,6 +12,14 @@ interface ScoreOpportunityInput {
 export interface OpportunityScore {
   score: number;
   confidence: InternalLinkConfidence;
+  signals: {
+    sourceTopicAlignment: number;
+    targetTopicAlignment: number;
+    sourceTargetAlignment: number;
+    sectionRelevance: number;
+    topOfPageWeight: number;
+    anchorNaturalness: number;
+  };
 }
 
 function overlapScore(sourceTerms: string[], targetTerms: string[]): number {
@@ -20,6 +28,50 @@ function overlapScore(sourceTerms: string[], targetTerms: string[]): number {
   const matches = [...targetSet].filter((term) => sourceSet.has(term)).length;
 
   return Math.min(1, matches / Math.max(3, targetSet.size));
+}
+
+function anchorNaturalness(anchor: string): number {
+  const words = anchor.trim().split(/\s+/).filter(Boolean).length;
+
+  if (words >= 2 && words <= 5) {
+    return 1;
+  }
+
+  if (words === 1 || words === 6) {
+    return 0.78;
+  }
+
+  return 0.52;
+}
+
+function sectionRelevance(sectionLabel: string): number {
+  const label = sectionLabel.toLowerCase();
+
+  if (label.includes("intro") || label.includes("overview") || label.includes("summary")) {
+    return 1;
+  }
+
+  if (label.includes("related") || label.includes("faq") || label.includes("references")) {
+    return 0.7;
+  }
+
+  return 0.88;
+}
+
+function topOfPageWeight(position: number): number {
+  if (position <= 2) {
+    return 1;
+  }
+
+  if (position <= 6) {
+    return 0.9;
+  }
+
+  if (position <= 12) {
+    return 0.8;
+  }
+
+  return 0.68;
 }
 
 export function scoreOpportunity({
@@ -31,6 +83,14 @@ export function scoreOpportunity({
   const topicalOverlap = overlapScore(
     [...source.keywords, ...source.topicPhrases.flatMap((phrase) => tokenize(phrase.phrase))],
     [...target.keywords, ...target.topicPhrases.flatMap((phrase) => tokenize(phrase.phrase))],
+  );
+  const sourceTopicAlignment = overlapScore(
+    [...tokenize(source.title), ...tokenize(source.h1), ...tokenize(source.primaryTopic)],
+    tokenize(suggestion.anchor),
+  );
+  const targetTopicAlignment = overlapScore(
+    [...tokenize(target.title), ...tokenize(target.h1), ...tokenize(target.primaryTopic)],
+    tokenize(suggestion.anchor),
   );
   const phraseMatchScore =
     suggestion.matchType === "exact" ? 1 : suggestion.matchType === "close" ? 0.8 : 0.45;
@@ -48,6 +108,9 @@ export function scoreOpportunity({
       : context.text.length >= 45 && context.text.length <= 320
         ? 0.84
         : 0.65;
+  const sectionWeight = sectionRelevance(context.sectionLabel);
+  const topSectionWeight = topOfPageWeight(context.position);
+  const naturalAnchorWeight = anchorNaturalness(suggestion.anchor);
   const blockWeight = context.blockType === "paragraph" ? 1 : 0.8;
   const commercialWeight = target.commerciallyImportant ? 1 : 0.72;
   const supportWeight =
@@ -58,17 +121,33 @@ export function scoreOpportunity({
         : 0.62;
 
   const score = Math.round(
-    phraseMatchScore * 34 +
-      topicalOverlap * 22 +
-      phraseSourceWeight * 16 +
-      contextStrength * 10 +
-      blockWeight * 6 +
-      commercialWeight * 7 +
-      supportWeight * 5,
+    phraseMatchScore * 22 +
+      targetTopicAlignment * 22 +
+      sourceTopicAlignment * 14 +
+      topicalOverlap * 12 +
+      phraseSourceWeight * 8 +
+      contextStrength * 7 +
+      sectionWeight * 5 +
+      topSectionWeight * 4 +
+      naturalAnchorWeight * 3 +
+      blockWeight * 1 +
+      commercialWeight * 1 +
+      supportWeight * 1,
   );
 
   const confidence: InternalLinkConfidence =
     score >= 78 ? "High" : score >= 58 ? "Medium" : "Low";
 
-  return { score, confidence };
+  return {
+    score,
+    confidence,
+    signals: {
+      sourceTopicAlignment,
+      targetTopicAlignment,
+      sourceTargetAlignment: topicalOverlap,
+      sectionRelevance: sectionWeight,
+      topOfPageWeight: topSectionWeight,
+      anchorNaturalness: naturalAnchorWeight,
+    },
+  };
 }

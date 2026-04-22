@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 
 const AUDIT_STEPS = [
   { label: "Scanning page structure", startsAt: 0 },
-  { label: "Checking metadata", startsAt: 2 },
-  { label: "Reviewing headings", startsAt: 4 },
-  { label: "Analysing images", startsAt: 6 },
-  { label: "Measuring performance", startsAt: 8 },
-  { label: "Looking for internal linking opportunities", startsAt: 10 },
-  { label: "Generating rewrite suggestions", startsAt: 13 },
+  { label: "Checking metadata", startsAt: 1 },
+  { label: "Reviewing headings", startsAt: 2 },
+  { label: "Analysing images", startsAt: 3 },
+  { label: "Measuring performance", startsAt: 4 },
+  { label: "Looking for internal linking opportunities", startsAt: 5 },
+  { label: "Generating rewrite suggestions", startsAt: 6 },
 ] as const;
 
 interface AuditLoadingStateProps {

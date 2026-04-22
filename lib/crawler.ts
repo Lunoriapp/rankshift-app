@@ -736,6 +736,71 @@ export async function crawlPage(url: string): Promise<CrawlResult> {
   }
 }
 
+async function crawlSiteForInternalLinkingWithBasicFetch(
+  startUrl: string,
+  maxPages: number,
+): Promise<SitePageSnapshot[]> {
+  const normalizedStartUrl = normalizeUrlForComparison(startUrl);
+  const start = new URL(normalizedStartUrl);
+  const seededUrls = [
+    normalizedStartUrl,
+    ...PRIORITY_SECTION_SEEDS.map((path) => new URL(path, start.origin).toString()),
+  ].filter((url, index, values) => values.indexOf(url) === index);
+  const queue: string[] = sortUrlsForInternalLinking(seededUrls);
+  const visited = new Set<string>();
+  const pages: SitePageSnapshot[] = [];
+
+  while (queue.length > 0 && pages.length < maxPages) {
+    const nextUrl = queue.shift();
+
+    if (!nextUrl || visited.has(nextUrl)) {
+      continue;
+    }
+
+    visited.add(nextUrl);
+
+    if (!shouldCrawlUrl(nextUrl, start.hostname)) {
+      continue;
+    }
+
+    try {
+      const { snapshot, discoveredUrls } = await crawlPageWithBasicFetch(nextUrl);
+
+      if (!(snapshot.contentType?.includes("text/html") ?? true)) {
+        continue;
+      }
+
+      pages.push(snapshot);
+
+      const prioritized = sortUrlsForInternalLinking(discoveredUrls);
+
+      for (const discoveredUrl of prioritized) {
+        const normalized = normalizeUrlForComparison(discoveredUrl);
+
+        if (
+          !visited.has(normalized) &&
+          !queue.includes(normalized) &&
+          shouldCrawlUrl(normalized, start.hostname)
+        ) {
+          if (isPrioritySectionUrl(normalized)) {
+            queue.unshift(normalized);
+          } else {
+            queue.push(normalized);
+          }
+        }
+      }
+    } catch {
+      // keep crawling other URLs
+    }
+  }
+
+  console.debug(
+    `[crawler] internal-linking fallback fetch discovered ${pages.length} pages starting from ${normalizedStartUrl}`,
+  );
+
+  return pages;
+}
+
 export async function crawlSiteForInternalLinking(
   startUrl: string,
   maxPages = 12,
@@ -752,11 +817,26 @@ export async function crawlSiteForInternalLinking(
     const queue: string[] = sortUrlsForInternalLinking(seededUrls);
     const visited = new Set<string>();
     const pages: SitePageSnapshot[] = [];
+    const diagnostics = {
+      queueSeededUrls: seededUrls.length,
+      queueDequeued: 0,
+      crawlAttempts: 0,
+      crawlSucceeded: 0,
+      fallbackFetchSucceeded: 0,
+      discoveredUrlsTotal: 0,
+      queueAddedFromDiscovery: 0,
+      skippedByShouldCrawl: 0,
+      skippedNonHtml: 0,
+      crawlFailures: 0,
+      pagesWithUsableMainContent: 0,
+      internalLinksExtracted: 0,
+    };
 
     browser = await launchChromiumBrowser();
 
     while (queue.length > 0 && pages.length < maxPages) {
       const nextUrl = queue.shift();
+      diagnostics.queueDequeued += 1;
 
       if (!nextUrl || visited.has(nextUrl)) {
         continue;
@@ -765,17 +845,26 @@ export async function crawlSiteForInternalLinking(
       visited.add(nextUrl);
 
       if (!shouldCrawlUrl(nextUrl, start.hostname)) {
+        diagnostics.skippedByShouldCrawl += 1;
         continue;
       }
 
       try {
+        diagnostics.crawlAttempts += 1;
         const { snapshot, discoveredUrls } = await crawlPageSnapshot(browser, nextUrl);
+        diagnostics.crawlSucceeded += 1;
+        diagnostics.discoveredUrlsTotal += discoveredUrls.length;
 
         if (!(snapshot.contentType?.includes("text/html") ?? true)) {
+          diagnostics.skippedNonHtml += 1;
           continue;
         }
 
         pages.push(snapshot);
+        diagnostics.internalLinksExtracted += snapshot.existingInternalLinks.length;
+        if (snapshot.bodyText.length >= 120 && snapshot.contentSections.length > 0) {
+          diagnostics.pagesWithUsableMainContent += 1;
+        }
 
         const prioritizedDiscoveredUrls = sortUrlsForInternalLinking(discoveredUrls);
 
@@ -787,6 +876,7 @@ export async function crawlSiteForInternalLinking(
             !queue.includes(normalized) &&
             shouldCrawlUrl(normalized, start.hostname)
           ) {
+            diagnostics.queueAddedFromDiscovery += 1;
             if (isPrioritySectionUrl(normalized)) {
               queue.unshift(normalized);
             } else {
@@ -795,6 +885,25 @@ export async function crawlSiteForInternalLinking(
           }
         }
       } catch {
+        diagnostics.crawlFailures += 1;
+
+        try {
+          const { snapshot } = await crawlPageWithBasicFetch(nextUrl);
+
+          if (!(snapshot.contentType?.includes("text/html") ?? true)) {
+            diagnostics.skippedNonHtml += 1;
+            continue;
+          }
+
+          pages.push(snapshot);
+          diagnostics.fallbackFetchSucceeded += 1;
+          diagnostics.internalLinksExtracted += snapshot.existingInternalLinks.length;
+          if (snapshot.bodyText.length >= 120 && snapshot.contentSections.length > 0) {
+            diagnostics.pagesWithUsableMainContent += 1;
+          }
+        } catch {
+          // keep moving through queue
+        }
         continue;
       }
     }
@@ -802,12 +911,12 @@ export async function crawlSiteForInternalLinking(
     console.debug(
       `[crawler] internal-linking crawl discovered ${pages.length} pages starting from ${normalizedStartUrl}`,
     );
+    console.debug("[crawler][internal-linking][pipeline]", diagnostics);
 
     return pages;
   } catch (error) {
     if (shouldUseBasicFetchFallback(error)) {
-      const { snapshot } = await crawlPageWithBasicFetch(startUrl);
-      return [snapshot];
+      return crawlSiteForInternalLinkingWithBasicFetch(startUrl, maxPages);
     }
 
     throw error;

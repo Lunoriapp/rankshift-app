@@ -13,6 +13,7 @@ export interface SiteContentContext {
   text: string;
   sectionLabel: string;
   blockType: CrawlContentSection["type"];
+  position: number;
 }
 
 export interface SitePageTopicProfile {
@@ -47,6 +48,13 @@ export interface InternalLinkOpportunity {
   confidenceScore: number;
   status: InternalLinkOpportunityStatus;
   category: "Internal linking";
+  opportunityType?: "contextual" | "related";
+  recommendationType?:
+    | "related service"
+    | "supporting information"
+    | "next-step page"
+    | "nearby topic"
+    | "location/service related page";
   otherPossibleMatches?: Array<{
     targetUrl: string;
     targetTitle: string;
@@ -58,6 +66,9 @@ export interface InternalLinkOpportunity {
 
 export interface InternalLinkDebugEntry {
   sourceUrl: string;
+  sourceTitle: string;
+  sourcePrimaryTopic: string;
+  extractedTopicTerms: string[];
   selectedContentSelector: string;
   paragraphCount: number;
   extractedChunkCount: number;
@@ -73,6 +84,14 @@ export interface InternalLinkDebugEntry {
     targetUrl: string;
     targetTitle: string;
     candidatePhrases: string[];
+    candidateAnchorPhrases: Array<{
+      anchor: string;
+      matchType: "exact" | "close" | "fallback";
+      sectionLabel: string;
+      score: number;
+      confidence: InternalLinkConfidence;
+      reason: string;
+    }>;
     existingContextualBodyLink: boolean;
     matchedSnippets: string[];
     decision: "accepted" | "rejected" | "skipped";
@@ -85,4 +104,33 @@ export interface InternalLinkingReport {
   opportunities: InternalLinkOpportunity[];
   scannedPageCount: number;
   debug: InternalLinkDebugEntry[];
+  diagnostics?: {
+    pagesInput: number;
+    pagesWithUsableContent: number;
+    internalLinksExtracted: number;
+    candidateSourcePages: number;
+    candidateDestinationPages: number;
+    contextsEvaluated: number;
+    pairEvaluations: number;
+    rawBodyAnchorMatchesFound: number;
+    rawAcceptedCandidates: number;
+    droppedByFilter: {
+      contentLength: number;
+      samePage: number;
+      alreadyLinked: number;
+      canonicalTarget: number;
+      samePrimaryTopic: number;
+      notIndexable: number;
+      anchorMatchOrSimilarity: number;
+      fallbackAnchor: number;
+      shortAnchor: number;
+      lowScore: number;
+    };
+    duplicateCandidatesRemoved: number;
+    removedByPerSourceCap: number;
+    removedByGlobalCap: number;
+    relatedCandidatesGenerated: number;
+    relatedSelected: number;
+    finalOpportunities: number;
+  };
 }

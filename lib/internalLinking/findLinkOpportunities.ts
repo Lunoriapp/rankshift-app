@@ -2,30 +2,15 @@ import type { SitePageSnapshot } from "../crawler";
 
 import { analyseSiteTopics } from "./analyseSiteTopics";
 import { scoreOpportunity } from "./scoreOpportunity";
+import type { OpportunityScore } from "./scoreOpportunity";
+import { buildSnippet, normalizePhrase, tokenize } from "./shared";
 import { suggestAnchorText } from "./suggestAnchorText";
 import type {
   InternalLinkDebugEntry,
   InternalLinkOpportunity,
   InternalLinkingReport,
-  SiteContentContext,
   SitePageTopicProfile,
 } from "./types";
-import {
-  buildSnippet,
-  findClosePhraseMatches,
-  findPhraseMatch,
-  isWeakTopicPhrase,
-  normalizePhrase,
-  phraseWordOverlap,
-} from "./shared";
-
-interface RankedSnippetCandidate {
-  context: SiteContentContext;
-  target: SitePageTopicProfile;
-  opportunity: InternalLinkOpportunity;
-  matchedSnippet: string;
-  reasons: string[];
-}
 
 function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string): string {
   const base = `${sourceUrl}|${targetUrl}|${anchor}`
@@ -42,326 +27,185 @@ function shouldSkipPair(source: SitePageTopicProfile, target: SitePageTopicProfi
     return true;
   }
 
-  if (source.existingInternalLinkTargets.includes(target.url)) {
+  const shouldEnforceExistingLinkSkip =
+    source.contentDebug.selectedContentSelector !== "fetch-fallback";
+
+  if (
+    shouldEnforceExistingLinkSkip &&
+    source.existingInternalLinkTargets.includes(target.url)
+  ) {
     return true;
-  }
-
-  if (source.canonicalUrl && source.canonicalUrl === target.url) {
-    return true;
-  }
-
-  if (normalizePhrase(source.primaryTopic) === normalizePhrase(target.primaryTopic)) {
-    return true;
-  }
-
-  return !source.indexable || !target.indexable;
-}
-
-function getSkipReason(source: SitePageTopicProfile, target: SitePageTopicProfile): string {
-  if (source.url === target.url) {
-    return "Skipped because source and target are the same page.";
-  }
-
-  if (source.existingInternalLinkTargets.includes(target.url)) {
-    return "Skipped because a contextual body link to this target already exists.";
-  }
-
-  if (source.canonicalUrl && source.canonicalUrl === target.url) {
-    return "Skipped because the target matches the source canonical URL.";
-  }
-
-  if (normalizePhrase(source.primaryTopic) === normalizePhrase(target.primaryTopic)) {
-    return "Skipped because source and target appear to have the same primary topic.";
   }
 
   if (!source.indexable || !target.indexable) {
-    return "Skipped because source or target is not indexable.";
+    return true;
   }
 
-  return "Skipped by pair filter.";
+  const blockedTargetPathFragments = ["/404", "/not-found", "/error", "/page-not-found"];
+  const targetPath = new URL(target.url).pathname.toLowerCase();
+  if (blockedTargetPathFragments.some((fragment) => targetPath.includes(fragment))) {
+    return true;
+  }
+
+  return false;
 }
 
-function buildPlacementHint(context: SiteContentContext, anchor: string): string {
-  if (context.sectionLabel === "Introduction") {
-    return `Opening copy: add the link where "${anchor}" is already mentioned.`;
+function buildPlacementHint(sectionLabel: string, anchor: string): string {
+  if (sectionLabel.toLowerCase().includes("introduction")) {
+    return `Opening copy: link \"${anchor}\" where it first appears.`;
   }
 
-  if (context.blockType === "list_item") {
-    return `List item under "${context.sectionLabel}".`;
-  }
-
-  return `Paragraph under "${context.sectionLabel}".`;
+  return `Paragraph under \"${sectionLabel}\".`;
 }
 
 function buildReason(
-  source: SitePageTopicProfile,
-  target: SitePageTopicProfile,
+  sourceTitle: string,
+  targetTitle: string,
   anchor: string,
+  scored: OpportunityScore,
 ): string {
-  return `${source.title} already mentions "${anchor}" but does not link users through to ${target.title}. Adding that link strengthens topical paths and helps visitors reach the more relevant page faster.`;
+  return `\"${anchor}\" strongly aligns with ${sourceTitle} and points naturally to ${targetTitle}; topic fit ${Math.round(scored.signals.targetTopicAlignment * 100)}%, source-theme fit ${Math.round(scored.signals.sourceTopicAlignment * 100)}%.`;
 }
 
-function collectMatchedSnippets(
-  source: SitePageTopicProfile,
-  target: SitePageTopicProfile,
-): string[] {
-  const snippets: string[] = [];
-
-  for (const context of source.bodyContexts) {
-    for (const phrase of target.topicPhrases) {
-      if (isWeakTopicPhrase(phrase.phrase)) {
-        continue;
-      }
-
-      const exact = findPhraseMatch(context.text, phrase.phrase);
-
-      if (exact) {
-        snippets.push(buildSnippet(context.text, exact));
-        break;
-      }
-
-      if (phraseWordOverlap(context.text, phrase.phrase) >= 0.67) {
-        const close = findClosePhraseMatches(context.text, phrase.phrase, 1)[0];
-
-        if (close) {
-          snippets.push(buildSnippet(context.text, close));
-          break;
-        }
-      }
-    }
-
-    if (snippets.length >= 3) {
-      break;
-    }
+function anchorAffinity(anchor: string, targetUrl: string, targetTitle: string): number {
+  const anchorTokens = new Set(tokenize(anchor));
+  if (anchorTokens.size === 0) {
+    return 0;
   }
 
-  return snippets;
+  const targetSignals = `${new URL(targetUrl).pathname} ${targetTitle}`;
+  const targetTokens = new Set(tokenize(targetSignals));
+  const overlap = [...anchorTokens].filter((token) => targetTokens.has(token)).length;
+
+  return overlap;
 }
 
-function evaluateTargetForContext(
-  source: SitePageTopicProfile,
-  target: SitePageTopicProfile,
-  context: SiteContentContext,
-): {
-  candidate: RankedSnippetCandidate | null;
-  reasons: string[];
-} {
-  const reasons: string[] = [];
-
-  if (context.text.length < 32) {
-    return {
-      candidate: null,
-      reasons: [
-        `Rejected context under "${context.sectionLabel}" because the source chunk was too short for a reliable editorial mention.`,
-      ],
-    };
-  }
-
-  if (shouldSkipPair(source, target)) {
-    return {
-      candidate: null,
-      reasons: [getSkipReason(source, target)],
-    };
-  }
-
-  const suggestion = suggestAnchorText(context.text, target);
-
-  if (!suggestion) {
-    return {
-      candidate: null,
-      reasons: [
-        `Rejected context under "${context.sectionLabel}" because no usable topic phrase match was found or the phrase match was too weak.`,
-      ],
-    };
-  }
-
-  if (suggestion.matchType === "fallback") {
-    return {
-      candidate: null,
-      reasons: [
-        `Rejected context under "${context.sectionLabel}" because only a fallback anchor was available, not a natural body mention.`,
-      ],
-    };
-  }
-
-  if (suggestion.anchor.length < 4) {
-    return {
-      candidate: null,
-      reasons: [
-        `Rejected context under "${context.sectionLabel}" because the matched anchor was too short.`,
-      ],
-    };
-  }
-
-  const matchedSnippet = buildSnippet(context.text, suggestion.anchor);
-  const { score, confidence } = scoreOpportunity({
-    source,
-    target,
-    context,
-    suggestion,
-  });
-
-  if (score < 48) {
-    return {
-      candidate: null,
-      reasons: [
-        `Rejected context under "${context.sectionLabel}" because the score was ${score}, below the acceptance threshold.`,
-      ],
-    };
-  }
-
-  return {
-    candidate: {
-      context,
-      target,
-      matchedSnippet,
-      reasons,
-      opportunity: {
-        id: buildOpportunityId(source.url, target.url, suggestion.anchor),
-        sourceUrl: source.url,
-        sourceTitle: source.title,
-        targetUrl: target.url,
-        targetTitle: target.title,
-        suggestedAnchor: suggestion.anchor,
-        matchedSnippet,
-        placementHint: buildPlacementHint(context, suggestion.anchor),
-        reason: buildReason(source, target, suggestion.anchor),
-        confidence,
-        confidenceScore: score,
-        status: "open",
-        category: "Internal linking",
-      },
-    },
-      reasons: [
-        `Accepted candidate under "${context.sectionLabel}" with ${confidence} confidence and score ${score}.`,
-      ],
-  };
-}
-
-function snippetKey(context: SiteContentContext): string {
-  return `${normalizePhrase(context.sectionLabel)}|${normalizePhrase(buildSnippet(context.text, context.text.slice(0, 24), 180))}`;
-}
-
-function isClearlyDifferentConcept(
-  primary: RankedSnippetCandidate,
-  secondary: RankedSnippetCandidate,
+function isBetterAnchorCandidate(
+  next: InternalLinkOpportunity,
+  current: InternalLinkOpportunity,
 ): boolean {
-  const primaryTopic = normalizePhrase(primary.target.primaryTopic);
-  const secondaryTopic = normalizePhrase(secondary.target.primaryTopic);
-
-  if (primaryTopic === secondaryTopic) {
-    return false;
+  if (next.confidenceScore !== current.confidenceScore) {
+    return next.confidenceScore > current.confidenceScore;
   }
 
-  return normalizePhrase(primary.opportunity.suggestedAnchor) !==
-    normalizePhrase(secondary.opportunity.suggestedAnchor);
+  const nextAffinity = anchorAffinity(next.suggestedAnchor, next.targetUrl, next.targetTitle);
+  const currentAffinity = anchorAffinity(
+    current.suggestedAnchor,
+    current.targetUrl,
+    current.targetTitle,
+  );
+
+  if (nextAffinity !== currentAffinity) {
+    return nextAffinity > currentAffinity;
+  }
+
+  return next.targetTitle.length > current.targetTitle.length;
 }
 
-function rankContextCandidates(
+function topicOverlapScore(source: SitePageTopicProfile, target: SitePageTopicProfile): number {
+  const sourceTokens = new Set<string>([
+    ...tokenize(source.primaryTopic),
+    ...source.keywords,
+    ...source.topicPhrases.slice(0, 8).flatMap((phrase) => tokenize(phrase.phrase)),
+  ]);
+  const targetTokens = new Set<string>([
+    ...tokenize(target.primaryTopic),
+    ...target.keywords,
+    ...target.topicPhrases.slice(0, 8).flatMap((phrase) => tokenize(phrase.phrase)),
+  ]);
+
+  if (sourceTokens.size === 0 || targetTokens.size === 0) {
+    return 0;
+  }
+
+  const overlap = [...targetTokens].filter((token) => sourceTokens.has(token)).length;
+  return Math.round((overlap / Math.max(1, Math.min(sourceTokens.size, targetTokens.size))) * 100);
+}
+
+function inferRecommendationType(
   source: SitePageTopicProfile,
-  context: SiteContentContext,
-  targets: SitePageTopicProfile[],
-): {
-  primary: RankedSnippetCandidate | null;
-  secondary: RankedSnippetCandidate[];
-  matchedSnippets: string[];
-  reasonsByTarget: Map<string, string[]>;
-} {
-  const accepted: RankedSnippetCandidate[] = [];
-  const reasonsByTarget = new Map<string, string[]>();
+  target: SitePageTopicProfile,
+): NonNullable<InternalLinkOpportunity["recommendationType"]> {
+  const sourcePath = normalizePhrase(new URL(source.url).pathname);
+  const targetPath = normalizePhrase(new URL(target.url).pathname);
 
-  for (const target of targets) {
-    const result = evaluateTargetForContext(source, target, context);
-    reasonsByTarget.set(target.url, result.reasons);
-
-    if (result.candidate) {
-      accepted.push(result.candidate);
-    }
+  if (targetPath.includes("service") || targetPath.includes("solution")) {
+    return "related service";
   }
 
-  accepted.sort((a, b) => b.opportunity.confidenceScore - a.opportunity.confidenceScore);
+  if (
+    targetPath.includes("contact") ||
+    targetPath.includes("book") ||
+    targetPath.includes("quote") ||
+    targetPath.includes("pricing")
+  ) {
+    return "next-step page";
+  }
 
-  const primary = accepted[0] ?? null;
-  const secondary = primary
-    ? accepted
-        .slice(1)
-        .filter((candidate) => isClearlyDifferentConcept(primary, candidate))
-        .filter(
-          (candidate) =>
-            primary.opportunity.confidenceScore - candidate.opportunity.confidenceScore <= 10,
-        )
-        .slice(0, 3)
-    : [];
+  if (sourcePath.includes("location") || targetPath.includes("location")) {
+    return "location/service related page";
+  }
 
-  return {
-    primary,
-    secondary,
-    matchedSnippets: primary ? [primary.matchedSnippet] : [],
-    reasonsByTarget,
-  };
+  if (targetPath.includes("blog") || targetPath.includes("guide") || targetPath.includes("faq")) {
+    return "supporting information";
+  }
+
+  return "nearby topic";
 }
 
-function mergeDuplicateSnippetRecommendations(
-  candidates: Array<{
-    primary: RankedSnippetCandidate;
-    secondary: RankedSnippetCandidate[];
-  }>,
+function buildRelatedCandidates(
+  source: SitePageTopicProfile,
+  pages: SitePageTopicProfile[],
 ): InternalLinkOpportunity[] {
-  const bySnippet = new Map<
-    string,
-    {
-      primary: RankedSnippetCandidate;
-      secondary: RankedSnippetCandidate[];
-    }
-  >();
-
-  for (const candidate of candidates) {
-    const key = snippetKey(candidate.primary.context);
-    const existing = bySnippet.get(key);
-
-    if (
-      !existing ||
-      candidate.primary.opportunity.confidenceScore > existing.primary.opportunity.confidenceScore
-    ) {
-      bySnippet.set(key, candidate);
-      continue;
-    }
-
-    const mergedSecondary = [...existing.secondary, candidate.primary, ...candidate.secondary]
-      .sort((a, b) => b.opportunity.confidenceScore - a.opportunity.confidenceScore)
-      .filter((item, index, list) => {
-        const firstIndex = list.findIndex(
-          (entry) => normalizePhrase(entry.target.url) === normalizePhrase(item.target.url),
-        );
-        return firstIndex === index;
-      })
-      .slice(0, 3);
-
-    bySnippet.set(key, {
-      primary: existing.primary,
-      secondary: mergedSecondary,
-    });
-  }
-
-  return [...bySnippet.values()].map(({ primary, secondary }) => ({
-    ...primary.opportunity,
-    otherPossibleMatches: secondary.map((item) => ({
-      targetUrl: item.opportunity.targetUrl,
-      targetTitle: item.opportunity.targetTitle,
-      suggestedAnchor: item.opportunity.suggestedAnchor,
-      confidence: item.opportunity.confidence,
-      confidenceScore: item.opportunity.confidenceScore,
-    })),
-  }));
+  return pages
+    .filter((target) => !shouldSkipPair(source, target))
+    .map((target) => ({
+      target,
+      score: topicOverlapScore(source, target),
+    }))
+    .filter((entry) => entry.score >= 24)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(({ target, score }) => ({
+      id: buildOpportunityId(source.url, target.url, `related-${score}`),
+      sourceUrl: source.url,
+      sourceTitle: source.title,
+      targetUrl: target.url,
+      targetTitle: target.title,
+      suggestedAnchor: "Related page link",
+      matchedSnippet: "No strong inline anchor was found in body text.",
+      placementHint:
+        "Add this link in a Related services, Further reading, or Useful next steps section.",
+      reason:
+        "No strong inline phrase match was found, but this page is clearly related and should still be linked for user flow and topical support.",
+      confidence: score >= 56 ? "Medium" : "Low",
+      confidenceScore: score >= 56 ? 60 : 48,
+      status: "open",
+      category: "Internal linking",
+      opportunityType: "related",
+      recommendationType: inferRecommendationType(source, target),
+    }));
 }
 
 function buildDebugEntry(
   source: SitePageTopicProfile,
-  opportunitiesFound: number,
   targetEvaluations: InternalLinkDebugEntry["targetEvaluations"],
+  opportunitiesFound: number,
 ): InternalLinkDebugEntry {
+  const extractedTopicTerms = Array.from(
+    new Set([
+      ...tokenize(source.title),
+      ...tokenize(source.h1),
+      ...tokenize(source.primaryTopic),
+      ...source.topicPhrases.slice(0, 8).flatMap((phrase) => tokenize(phrase.phrase)),
+    ]),
+  ).slice(0, 20);
+
   return {
     sourceUrl: source.url,
+    sourceTitle: source.title,
+    sourcePrimaryTopic: source.primaryTopic,
+    extractedTopicTerms,
     selectedContentSelector: source.contentDebug.selectedContentSelector,
     paragraphCount: source.contentDebug.paragraphCount,
     extractedChunkCount: source.contentDebug.extractedBlockCount,
@@ -377,161 +221,303 @@ function buildDebugEntry(
   };
 }
 
-function logDebugEntry(entry: InternalLinkDebugEntry) {
-  console.debug(`[internal-linking] source=${entry.sourceUrl}`);
-  console.debug(
-    `[internal-linking] selector=${entry.selectedContentSelector} paragraphs=${entry.paragraphCount} chunks=${entry.extractedChunkCount} fallback=${entry.fallbackStrategyUsed}`,
-  );
-  console.debug(
-    `[internal-linking] headings h1=${entry.headingCounts.h1} h2=${entry.headingCounts.h2} h3=${entry.headingCounts.h3} h4=${entry.headingCounts.h4}`,
-  );
-  console.debug(
-    `[internal-linking] heading_texts h1=${entry.headingTexts.h1.join(" | ") || "(none)"}`,
-  );
-  console.debug(
-    `[internal-linking] heading_texts h2=${entry.headingTexts.h2.join(" | ") || "(none)"}`,
-  );
-  console.debug(
-    `[internal-linking] heading_texts h3=${entry.headingTexts.h3.join(" | ") || "(none)"}`,
-  );
-  console.debug(`[internal-linking] has_multiple_visible_h1=${entry.hasMultipleVisibleH1}`);
-  console.debug(
-    `[internal-linking] contextual_body_links=${entry.contextualBodyLinks
-      .map((link) => `${link.text} -> ${link.href}`)
-      .join(" || ") || "(none)"}`,
-  );
-
-  for (const [index, chunk] of entry.firstExtractedTextChunks.entries()) {
-    console.debug(`[internal-linking] chunk_${index + 1}=${chunk}`);
-  }
-
-  console.debug(
-    `[internal-linking] candidate_targets=${entry.candidateTargetPagesConsidered} opportunities=${entry.opportunitiesFound}`,
-  );
-
-  for (const evaluation of entry.targetEvaluations) {
-    console.debug(
-      `[internal-linking] target=${evaluation.targetUrl} existing_contextual_link=${evaluation.existingContextualBodyLink}`,
-    );
-    console.debug(
-      `[internal-linking] target_phrases=${evaluation.candidatePhrases.join(" | ") || "(none)"}`,
-    );
-    console.debug(
-      `[internal-linking] matched_snippets=${evaluation.matchedSnippets.join(" || ") || "(none)"}`,
-    );
-    console.debug(`[internal-linking] decision=${evaluation.decision}`);
-
-    for (const reason of evaluation.reasons) {
-      console.debug(`[internal-linking] reason=${reason}`);
-    }
-  }
-}
-
 export function findLinkOpportunities(
   pages: SitePageSnapshot[],
   maxOpportunities = 24,
 ): InternalLinkingReport {
   const topicProfiles = analyseSiteTopics(pages);
-  const opportunities: InternalLinkOpportunity[] = [];
   const debug: InternalLinkDebugEntry[] = [];
+  const suggestions: InternalLinkOpportunity[] = [];
+  const seen = new Set<string>();
+
+  const diagnostics: NonNullable<InternalLinkingReport["diagnostics"]> = {
+    pagesInput: pages.length,
+    pagesWithUsableContent: pages.filter(
+      (page) => page.indexable && page.bodyText.length >= 80 && page.contentSections.length > 0,
+    ).length,
+    internalLinksExtracted: pages.reduce((sum, page) => sum + page.existingInternalLinks.length, 0),
+    candidateSourcePages: topicProfiles.length,
+    candidateDestinationPages: topicProfiles.length,
+    contextsEvaluated: 0,
+    pairEvaluations: 0,
+    rawBodyAnchorMatchesFound: 0,
+    rawAcceptedCandidates: 0,
+    droppedByFilter: {
+      contentLength: 0,
+      samePage: 0,
+      alreadyLinked: 0,
+      canonicalTarget: 0,
+      samePrimaryTopic: 0,
+      notIndexable: 0,
+      anchorMatchOrSimilarity: 0,
+      fallbackAnchor: 0,
+      shortAnchor: 0,
+      lowScore: 0,
+    },
+    duplicateCandidatesRemoved: 0,
+    removedByPerSourceCap: 0,
+    removedByGlobalCap: 0,
+    relatedCandidatesGenerated: 0,
+    relatedSelected: 0,
+    finalOpportunities: 0,
+  };
 
   for (const source of topicProfiles) {
-    const sourceSnippetRecommendations: Array<{
-      primary: RankedSnippetCandidate;
-      secondary: RankedSnippetCandidate[];
-    }> = [];
-    const targetEvaluations = new Map<
-      string,
-      InternalLinkDebugEntry["targetEvaluations"][number]
-    >();
+    const targetEvaluations: InternalLinkDebugEntry["targetEvaluations"] = [];
+    let sourceOpportunities = 0;
 
     for (const target of topicProfiles) {
-      targetEvaluations.set(target.url, {
-        targetUrl: target.url,
-        targetTitle: target.title,
-        candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
-        existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
-        matchedSnippets: [],
-        decision: shouldSkipPair(source, target) ? "skipped" : "rejected",
-        reasons: shouldSkipPair(source, target) ? [getSkipReason(source, target)] : [],
-      });
-    }
+      diagnostics.pairEvaluations += 1;
 
-    for (const context of source.bodyContexts) {
-      const result = rankContextCandidates(source, context, topicProfiles);
-
-      for (const target of topicProfiles) {
-        const evaluation = targetEvaluations.get(target.url);
-
-        if (!evaluation) {
-          continue;
-        }
-
-        const nextReasons = result.reasonsByTarget.get(target.url);
-
-        if (nextReasons && nextReasons.length > 0) {
-          evaluation.reasons.push(...nextReasons);
-        }
-      }
-
-      if (!result.primary) {
+      if (shouldSkipPair(source, target)) {
+        targetEvaluations.push({
+          targetUrl: target.url,
+          targetTitle: target.title,
+          candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
+          candidateAnchorPhrases: [],
+          existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+          matchedSnippets: [],
+          decision: "skipped",
+          reasons: ["Skipped because source and target are the same page or already linked."],
+        });
         continue;
       }
 
-      sourceSnippetRecommendations.push({
-        primary: result.primary,
-        secondary: result.secondary,
-      });
+      let matched = false;
+      const rejectedReasons: string[] = [];
+      const candidateAnchorPhrases: InternalLinkDebugEntry["targetEvaluations"][number]["candidateAnchorPhrases"] =
+        [];
+      let winningCandidate: {
+        contextText: string;
+        sectionLabel: string;
+        anchor: string;
+        matchType: "exact" | "close" | "fallback";
+        scored: OpportunityScore;
+      } | null = null;
 
-      const primaryEvaluation = targetEvaluations.get(result.primary.target.url);
+      for (const context of source.bodyContexts) {
+        diagnostics.contextsEvaluated += 1;
 
-      if (primaryEvaluation) {
-        primaryEvaluation.matchedSnippets = [result.primary.matchedSnippet];
-        primaryEvaluation.decision = "accepted";
-      }
-
-      for (const secondary of result.secondary) {
-        const secondaryEvaluation = targetEvaluations.get(secondary.target.url);
-
-        if (!secondaryEvaluation) {
+        if (context.text.length < 28) {
+          diagnostics.droppedByFilter.contentLength += 1;
           continue;
         }
 
-        secondaryEvaluation.matchedSnippets = [secondary.matchedSnippet];
-        secondaryEvaluation.reasons.push(
-          `Held as an alternate match for the same source snippet because a stronger primary target was chosen.`,
-        );
+        const suggestion = suggestAnchorText(context.text, target);
+
+        if (!suggestion) {
+          diagnostics.droppedByFilter.anchorMatchOrSimilarity += 1;
+          continue;
+        }
+
+        if (suggestion.matchType === "fallback") {
+          rejectedReasons.push(
+            `Rejected context under \"${context.sectionLabel}\" because only a fallback anchor was available, not a natural body mention.`,
+          );
+          diagnostics.droppedByFilter.fallbackAnchor += 1;
+          continue;
+        }
+
+        if (suggestion.anchor.length < 4) {
+          diagnostics.droppedByFilter.shortAnchor += 1;
+          continue;
+        }
+
+        diagnostics.rawBodyAnchorMatchesFound += 1;
+        const scored = scoreOpportunity({
+          source,
+          target,
+          context,
+          suggestion,
+        });
+        const sourceFit = scored.signals.sourceTopicAlignment;
+        const targetFit = scored.signals.targetTopicAlignment;
+
+        if (sourceFit < 0.34 || targetFit < 0.34) {
+          diagnostics.droppedByFilter.lowScore += 1;
+          candidateAnchorPhrases.push({
+            anchor: suggestion.anchor,
+            matchType: suggestion.matchType,
+            sectionLabel: context.sectionLabel,
+            score: scored.score,
+            confidence: scored.confidence,
+            reason: `Rejected for weak topical fit (source ${Math.round(sourceFit * 100)}%, target ${Math.round(targetFit * 100)}%).`,
+          });
+          continue;
+        }
+
+        if (scored.score < 62) {
+          diagnostics.droppedByFilter.lowScore += 1;
+          candidateAnchorPhrases.push({
+            anchor: suggestion.anchor,
+            matchType: suggestion.matchType,
+            sectionLabel: context.sectionLabel,
+            score: scored.score,
+            confidence: scored.confidence,
+            reason: `Rejected because score ${scored.score} is below minimum 62.`,
+          });
+          continue;
+        }
+
+        candidateAnchorPhrases.push({
+          anchor: suggestion.anchor,
+          matchType: suggestion.matchType,
+          sectionLabel: context.sectionLabel,
+          score: scored.score,
+          confidence: scored.confidence,
+          reason: `Kept candidate with strong source and target alignment.`,
+        });
+
+        if (!winningCandidate || scored.score > winningCandidate.scored.score) {
+          winningCandidate = {
+            contextText: context.text,
+            sectionLabel: context.sectionLabel,
+            anchor: suggestion.anchor,
+            matchType: suggestion.matchType,
+            scored,
+          };
+        }
+      }
+
+      if (winningCandidate) {
+        const snippet = buildSnippet(winningCandidate.contextText, winningCandidate.anchor);
+        const key = `${source.url}|${target.url}|${normalizePhrase(winningCandidate.anchor)}`;
+
+        if (seen.has(key)) {
+          diagnostics.duplicateCandidatesRemoved += 1;
+          targetEvaluations.push({
+            targetUrl: target.url,
+            targetTitle: target.title,
+            candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
+            candidateAnchorPhrases: candidateAnchorPhrases
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 12),
+            existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+            matchedSnippets: [snippet],
+            decision: "rejected",
+            reasons: ["Best contextual candidate duplicated an existing source/target/anchor match."],
+          });
+          continue;
+        }
+
+        seen.add(key);
+        suggestions.push({
+          id: buildOpportunityId(source.url, target.url, winningCandidate.anchor),
+          sourceUrl: source.url,
+          sourceTitle: source.title,
+          targetUrl: target.url,
+          targetTitle: target.title,
+          suggestedAnchor: winningCandidate.anchor,
+          matchedSnippet: snippet,
+          placementHint: buildPlacementHint(winningCandidate.sectionLabel, winningCandidate.anchor),
+          reason: buildReason(source.title, target.title, winningCandidate.anchor, winningCandidate.scored),
+          confidence: winningCandidate.scored.confidence,
+          confidenceScore: winningCandidate.scored.score,
+          status: "open",
+          category: "Internal linking",
+          opportunityType: "contextual",
+        });
+
+        sourceOpportunities += 1;
+        diagnostics.rawAcceptedCandidates += 1;
+        targetEvaluations.push({
+          targetUrl: target.url,
+          targetTitle: target.title,
+          candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
+          candidateAnchorPhrases: candidateAnchorPhrases
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 12),
+          existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+          matchedSnippets: [snippet],
+          decision: "accepted",
+          reasons: [
+            `Accepted best candidate under \"${winningCandidate.sectionLabel}\" with ${winningCandidate.scored.confidence} confidence and score ${winningCandidate.scored.score}.`,
+          ],
+        });
+
+        matched = true;
+      }
+
+      if (!matched) {
+        targetEvaluations.push({
+          targetUrl: target.url,
+          targetTitle: target.title,
+          candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
+          candidateAnchorPhrases: candidateAnchorPhrases
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 12),
+          existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+          matchedSnippets: [],
+          decision: "rejected",
+          reasons:
+            rejectedReasons.length > 0
+              ? rejectedReasons
+              : ["No strong contextual phrase match was found in source body copy."],
+        });
       }
     }
 
-    const mergedOpportunities = mergeDuplicateSnippetRecommendations(sourceSnippetRecommendations)
-      .sort((a, b) => b.confidenceScore - a.confidenceScore)
-      .slice(0, 4);
+    if (sourceOpportunities === 0) {
+      const relatedCandidates = buildRelatedCandidates(source, topicProfiles);
+      diagnostics.relatedCandidatesGenerated += relatedCandidates.length;
 
-    for (const opportunity of mergedOpportunities) {
-      if (!opportunities.find((item) => item.id === opportunity.id)) {
-        opportunities.push(opportunity);
+      for (const candidate of relatedCandidates) {
+        const key = `${candidate.sourceUrl}|${candidate.targetUrl}|related`;
+
+        if (seen.has(key)) {
+          diagnostics.duplicateCandidatesRemoved += 1;
+          continue;
+        }
+
+        seen.add(key);
+        suggestions.push(candidate);
+        diagnostics.relatedSelected += 1;
       }
     }
 
-    const targetEvaluationList = [...targetEvaluations.values()];
-    const debugEntry = buildDebugEntry(
-      source,
-      mergedOpportunities.length,
-      targetEvaluationList,
-    );
-    debug.push(debugEntry);
-    logDebugEntry(debugEntry);
+    debug.push(buildDebugEntry(source, targetEvaluations, sourceOpportunities));
   }
 
-  const sortedOpportunities = opportunities
-    .sort((a, b) => b.confidenceScore - a.confidenceScore)
-    .slice(0, maxOpportunities);
+  const bestBySourceTarget = new Map<string, InternalLinkOpportunity>();
+
+  for (const suggestion of suggestions) {
+    const key = `${suggestion.sourceUrl}|${suggestion.targetUrl}`;
+    const existing = bestBySourceTarget.get(key);
+
+    if (!existing || suggestion.confidenceScore > existing.confidenceScore) {
+      bestBySourceTarget.set(key, suggestion);
+    }
+  }
+
+  const bestBySourceAnchor = new Map<string, InternalLinkOpportunity>();
+
+  for (const suggestion of bestBySourceTarget.values()) {
+    const anchorKey = `${suggestion.sourceUrl}|${normalizePhrase(suggestion.suggestedAnchor)}`;
+    const existing = bestBySourceAnchor.get(anchorKey);
+
+    if (!existing || isBetterAnchorCandidate(suggestion, existing)) {
+      bestBySourceAnchor.set(anchorKey, suggestion);
+    }
+  }
+
+  const sorted = [...bestBySourceAnchor.values()].sort(
+    (a, b) => b.confidenceScore - a.confidenceScore,
+  );
+  const finalOpportunities = sorted.slice(0, maxOpportunities);
+  diagnostics.duplicateCandidatesRemoved += Math.max(
+    0,
+    suggestions.length - bestBySourceTarget.size + (bestBySourceTarget.size - sorted.length),
+  );
+  diagnostics.removedByGlobalCap = Math.max(0, sorted.length - finalOpportunities.length);
+  diagnostics.finalOpportunities = finalOpportunities.length;
+
+  console.debug("[internal-linking][pipeline]", diagnostics);
 
   return {
     pages: topicProfiles,
-    opportunities: sortedOpportunities,
+    opportunities: finalOpportunities,
     scannedPageCount: pages.length,
     debug,
+    diagnostics,
   };
 }

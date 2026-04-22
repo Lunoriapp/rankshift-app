@@ -7,6 +7,7 @@ import {
   isCommercialPage,
   normalizeWhitespace,
   repeatedBodyPhrases,
+  splitIntoSentences,
   titleParts,
   topTermsFromBody,
 } from "./shared";
@@ -70,14 +71,51 @@ function buildTopicPhrases(page: SitePageSnapshot): TopicPhraseCandidate[] {
 }
 
 function buildBodyContexts(page: SitePageSnapshot): SiteContentContext[] {
-  return page.contentSections
-    .map((section) => ({
-      text: normalizeWhitespace(section.text),
-      sectionLabel: section.label || "Body content",
-      blockType: section.type,
-    }))
-    .filter((section) => section.text.length >= 32)
-    .slice(0, 180);
+  const contexts: SiteContentContext[] = [];
+  let position = 0;
+
+  for (const section of page.contentSections) {
+    const normalizedSectionText = normalizeWhitespace(section.text);
+    const sectionLabel = section.label || "Body content";
+
+    if (normalizedSectionText.length >= 32) {
+      contexts.push({
+        text: normalizedSectionText,
+        sectionLabel,
+        blockType: section.type,
+        position,
+      });
+      position += 1;
+    }
+
+    for (const sentence of splitIntoSentences(normalizedSectionText)) {
+      if (sentence.length < 32) {
+        continue;
+      }
+
+      contexts.push({
+        text: sentence,
+        sectionLabel,
+        blockType: section.type,
+        position,
+      });
+      position += 1;
+    }
+  }
+
+  const seen = new Set<string>();
+  const deduped = contexts.filter((context) => {
+    const key = normalizeWhitespace(context.text).toLowerCase();
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+
+  return deduped.slice(0, 220);
 }
 
 export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfile[] {
@@ -90,7 +128,13 @@ export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfi
   }
 
   return pages
-    .filter((page) => page.indexable && page.bodyText.length >= 80)
+    .filter(
+      (page) =>
+        page.indexable &&
+        page.statusCode >= 200 &&
+        page.statusCode < 400 &&
+        page.bodyText.length >= 80,
+    )
     .map((page) => ({
       url: page.url,
       canonicalUrl: page.canonical,

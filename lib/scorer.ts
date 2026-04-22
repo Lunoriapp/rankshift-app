@@ -42,6 +42,42 @@ const DESCRIPTION_MAX = 160;
 const RAW_TOTAL_MAX = 120;
 const DISPLAY_TOTAL_MAX = 100;
 
+function getWordCount(value: string): number {
+  return value.split(/\s+/).filter(Boolean).length;
+}
+
+function getTitleScore(length: number): number {
+  if (length >= 20 && length <= 58) {
+    return 10;
+  }
+
+  if (length >= TITLE_MIN && length <= TITLE_MAX) {
+    return 7;
+  }
+
+  if (length >= 6 && length <= 70) {
+    return 3;
+  }
+
+  return 0;
+}
+
+function getDescriptionScore(length: number): number {
+  if (length >= 90 && length <= 155) {
+    return 10;
+  }
+
+  if (length >= DESCRIPTION_MIN && length <= DESCRIPTION_MAX) {
+    return 7;
+  }
+
+  if (length >= 35 && length <= 180) {
+    return 3;
+  }
+
+  return 0;
+}
+
 function buildPillar(checks: ScoreCheck[], maxScore: number): ScorePillar {
   return {
     score: checks.reduce((sum, check) => sum + check.score, 0),
@@ -78,27 +114,47 @@ function getImageScore(images: CrawlResult["images"]): number {
 }
 
 function getPerformanceScore(loadTimeMs: number): number {
-  if (loadTimeMs < 2_000) {
+  if (loadTimeMs < 1_500) {
     return 20;
+  }
+
+  if (loadTimeMs < 2_500) {
+    return 16;
   }
 
   if (loadTimeMs < 4_000) {
     return 10;
   }
 
-  return 5;
+  if (loadTimeMs < 6_000) {
+    return 5;
+  }
+
+  return 0;
 }
 
-function getInternalLinkCoverageScore(internalLinkCount: number): number {
-  if (internalLinkCount >= 8) {
+function getContentDepthHeadingScore(headingCount: number): number {
+  if (headingCount >= 5) {
     return 10;
   }
 
-  if (internalLinkCount >= 4) {
-    return 7;
+  if (headingCount >= 3) {
+    return 6;
   }
 
-  if (internalLinkCount >= 1) {
+  return 0;
+}
+
+function getInternalLinkCoverageScore(internalLinkCount: number): number {
+  if (internalLinkCount >= 10) {
+    return 10;
+  }
+
+  if (internalLinkCount >= 6) {
+    return 8;
+  }
+
+  if (internalLinkCount >= 3) {
     return 4;
   }
 
@@ -127,6 +183,32 @@ function getInternalLinkOpportunityScore(data: CrawlResult): number {
 
 function normalizeToDisplayScore(value: number, rawMax = RAW_TOTAL_MAX): number {
   return Math.max(0, Math.min(DISPLAY_TOTAL_MAX, Math.round((value / rawMax) * DISPLAY_TOTAL_MAX)));
+}
+
+function getQualityPenalty(data: CrawlResult): number {
+  let penalty = 0;
+  const wordCount = getWordCount(data.bodyText);
+  const h2Count = data.h2s.length;
+
+  if (!data.canonical) {
+    penalty += 4;
+  }
+
+  if (wordCount < 450) {
+    penalty += 12;
+  } else if (wordCount < 700) {
+    penalty += 8;
+  } else if (wordCount < 900) {
+    penalty += 5;
+  }
+
+  if (h2Count === 0) {
+    penalty += 6;
+  } else if (h2Count === 1) {
+    penalty += 3;
+  }
+
+  return penalty;
 }
 
 function getOpportunityLabel(score: number): OpportunityAssessment["label"] {
@@ -203,13 +285,13 @@ function buildOpportunityAssessment(
 }
 
 export function scoreAudit(data: CrawlResult): ScoreBreakdown {
-  const titleIsValid =
-    data.title.trim().length >= TITLE_MIN && data.title.trim().length <= TITLE_MAX;
-  const descriptionIsValid =
-    data.description.trim().length >= DESCRIPTION_MIN &&
-    data.description.trim().length <= DESCRIPTION_MAX;
+  const titleLength = data.title.trim().length;
+  const descriptionLength = data.description.trim().length;
+  const titleScore = getTitleScore(titleLength);
+  const descriptionScore = getDescriptionScore(descriptionLength);
   const h1Count = data.headings.filter((heading) => heading.level === 1).length;
   const totalHeadings = data.headings.length;
+  const contentDepthHeadingScore = getContentDepthHeadingScore(totalHeadings);
   const imageScore = getImageScore(data.images);
   const performanceScore = getPerformanceScore(data.loadTimeMs);
   const internalLinkCoverageScore = getInternalLinkCoverageScore(data.internalLinkCount);
@@ -219,14 +301,14 @@ export function scoreAudit(data: CrawlResult): ScoreBreakdown {
     [
       {
         label: "Title length valid",
-        passed: titleIsValid,
-        score: titleIsValid ? 10 : 0,
+        passed: titleScore >= 7,
+        score: titleScore,
         maxScore: 10,
       },
       {
         label: "Description length valid",
-        passed: descriptionIsValid,
-        score: descriptionIsValid ? 10 : 0,
+        passed: descriptionScore >= 7,
+        score: descriptionScore,
         maxScore: 10,
       },
     ],
@@ -244,7 +326,7 @@ export function scoreAudit(data: CrawlResult): ScoreBreakdown {
       {
         label: "At least 3 headings total",
         passed: totalHeadings >= 3,
-        score: totalHeadings >= 3 ? 10 : 0,
+        score: contentDepthHeadingScore,
         maxScore: 10,
       },
     ],
@@ -313,12 +395,15 @@ export function scoreAudit(data: CrawlResult): ScoreBreakdown {
     schema.score +
     internalLinking.score;
 
+  const qualityPenalty = getQualityPenalty(data);
+  const adjustedTotal = Math.max(0, total - qualityPenalty);
+
   return {
-    total: normalizeToDisplayScore(total),
+    total: normalizeToDisplayScore(adjustedTotal),
     maxScore: 100,
     opportunity: buildOpportunityAssessment(
       data,
-      total,
+      adjustedTotal,
       meta.score,
       headings.score,
       images.score,

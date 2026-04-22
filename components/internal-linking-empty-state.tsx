@@ -25,15 +25,14 @@ export function InternalLinkingEmptyState({
   return (
     <div className="rounded-[30px] border border-emerald-200/70 bg-[linear-gradient(180deg,rgba(240,253,250,0.98),rgba(255,255,255,0.98))] p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] transition-colors duration-300 dark:border-emerald-900/70 dark:bg-[linear-gradient(180deg,rgba(6,78,59,0.32),rgba(15,23,42,0.98))] sm:p-7">
       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700/80 dark:text-emerald-300">
-        Queue clear
+        No live queue items
       </p>
       <h3 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-        No obvious contextual link gaps were found in the scanned editorial copy
+        No link opportunities found
       </h3>
       <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-700 dark:text-slate-300">
-        The current crawl already looks reasonably linked between related pages. That does not
-        mean the feature failed, just that this batch did not surface a clear missed link worth
-        turning into an action item.
+        This scan did not return usable internal-link suggestions. Try a fresh crawl and check that
+        the page has enough body copy and internal pages to match against.
       </p>
     </div>
   );

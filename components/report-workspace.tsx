@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { AuditDetailsAccordion } from "@/components/AuditDetailsAccordion";
 import { AuditHeroSummary } from "@/components/AuditHeroSummary";
 import { CompetitorGapSection } from "@/components/CompetitorGapSection";
 import { FixList } from "@/components/fix-list";
 import { HistoryPanel } from "@/components/history-panel";
-import { ImprovementTracker } from "@/components/ImprovementTracker";
+import { InternalLinkingOpportunities } from "@/components/internal-linking-opportunities";
 import { PremiumInsightsLock } from "@/components/PremiumInsightsLock";
 import { RewritePanel } from "@/components/rewrite-panel";
 import { ScoreCards, type ScoreCardItem } from "@/components/score-cards";
@@ -16,12 +17,17 @@ import { UpgradeModal } from "@/components/upgrade-modal";
 import type { AuditFix, FixSeverity } from "@/lib/audit-fixes";
 import { buildOptimisationPlan } from "@/lib/audit-fixes";
 import {
-  competitorComparisonData,
+  buildCompetitorComparisonDataFromAudit,
   type CompetitorComparisonData,
 } from "@/lib/competitor-comparison";
 import type { InternalLinkOpportunity } from "@/lib/internalLinking/types";
 import type { OpportunityAssessment, ScoreBreakdown, ScorePillar } from "@/lib/scorer";
-import type { AuditFixStateRecord, AuditHistoryEntry, AuditRecord } from "@/lib/supabase";
+import type {
+  AuditFixStateRecord,
+  AuditHistoryEntry,
+  AuditRecord,
+  CompetitorSnapshotRecord,
+} from "@/lib/supabase";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
 
 interface ReportWorkspaceProps {
@@ -32,7 +38,10 @@ interface ReportPayload {
   audit: AuditRecord;
   history: AuditHistoryEntry[];
   fixStates: AuditFixStateRecord[];
+  competitorSnapshots: CompetitorSnapshotRecord[];
 }
+
+type AuditStatus = "Strong" | "Competitive" | "Needs improvement" | "At risk";
 
 function normalizeOpportunityUrl(value: string): string {
   try {
@@ -43,6 +52,17 @@ function normalizeOpportunityUrl(value: string): string {
     return parsed.toString();
   } catch {
     return value;
+  }
+}
+
+function normalizeComparablePageKey(value: string): string {
+  try {
+    const parsed = new URL(value);
+    const hostname = parsed.hostname.replace(/^www\./, "").toLowerCase();
+    const pathname = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+    return `${hostname}${pathname}`;
+  } catch {
+    return value.trim().toLowerCase();
   }
 }
 
@@ -219,25 +239,6 @@ function getWhy(
     : "This keeps the page topic anchored with a stronger primary heading.";
 }
 
-function getWordCount(text: string): number {
-  return text.split(/\s+/).filter(Boolean).length;
-}
-
-function buildLiveCompetitorComparisonData(audit: AuditRecord): CompetitorComparisonData {
-  return {
-    user: {
-      name: "Your Page",
-      score: audit.score.total,
-      titleLength: audit.crawl.title.trim().length,
-      h1: audit.crawl.h1.trim().length > 0,
-      wordCount: getWordCount(audit.crawl.bodyText),
-      internalLinks: audit.crawl.internalLinkCount,
-      schema: audit.crawl.hasJsonLd,
-    },
-    competitors: competitorComparisonData.competitors,
-  };
-}
-
 function getFixPriorityValue(severity: FixSeverity): number {
   if (severity === "critical") {
     return 0;
@@ -250,7 +251,243 @@ function getFixPriorityValue(severity: FixSeverity): number {
   return 2;
 }
 
+function getFixImpactValue(fix: AuditFix): number {
+  const title = fix.title.toLowerCase();
+
+  if (title.includes("h1") || title.includes("title tag") || title.includes("meta")) {
+    return 0;
+  }
+
+  if (title.includes("internal link") || title.includes("schema")) {
+    return 1;
+  }
+
+  if (title.includes("heading") || title.includes("content")) {
+    return 2;
+  }
+
+  return 3;
+}
+
+function getCredibleScore(inputScore: number, issuesFound: number, competitorGap: number): number {
+  let score = inputScore;
+
+  if (issuesFound > 0) {
+    score = Math.min(score, 98);
+  }
+
+  if (competitorGap > 0) {
+    score = Math.min(score, 96 - Math.min(6, Math.floor(competitorGap / 2)));
+  }
+
+  if (issuesFound >= 8) {
+    score = Math.min(score, 74);
+  } else if (issuesFound >= 5) {
+    score = Math.min(score, 84);
+  }
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function deriveAuditStatus(score: number, issuesFound: number, competitorGap: number): AuditStatus {
+  if (score < 45 || issuesFound >= 10 || competitorGap >= 12) {
+    return "At risk";
+  }
+
+  if (score < 68 || issuesFound >= 6 || competitorGap >= 6) {
+    return "Needs improvement";
+  }
+
+  if (score >= 82 && competitorGap <= 1 && issuesFound <= 2) {
+    return "Strong";
+  }
+
+  return "Competitive";
+}
+
+function buildHeroMessaging(status: AuditStatus): { headline: string; summary: string } {
+  if (status === "At risk") {
+    return {
+      headline: "Your page is behind on key ranking signals",
+      summary:
+        "Fix these issues now to stop losing visibility to stronger pages and recover competitive ground.",
+    };
+  }
+
+  if (status === "Needs improvement") {
+    return {
+      headline: "Fix these issues to close the gap with stronger pages",
+      summary:
+        "Your page has potential, but competitors are still ahead on structure, depth, and internal support.",
+    };
+  }
+
+  if (status === "Competitive") {
+    return {
+      headline: "You are close, but competitors still lead on a few signals",
+      summary:
+        "Prioritise the top fixes now to convert this page from nearly competitive to reliably strong.",
+    };
+  }
+
+  return {
+    headline: "Strong foundation, with clear opportunities to protect rankings",
+    summary:
+      "Your page is performing well. Ship the next fixes to stay ahead as competitor pages continue to improve.",
+  };
+}
+
+function ensureTopFixCoverage(input: {
+  fixes: AuditFix[];
+  titleLength: number;
+  h1Present: boolean;
+  headingCount: number;
+  wordCount: number;
+  internalLinks: number;
+  schemaPresent: boolean;
+  competitorGap: number;
+}): AuditFix[] {
+  const merged = [...input.fixes];
+  const hasId = new Set(input.fixes.map((fix) => fix.id));
+
+  if (!input.h1Present && !hasId.has("single-h1")) {
+    merged.push({
+      id: "fallback-single-h1",
+      severity: "critical",
+      pillar: "headings",
+      title: "Use one clear H1 to define page intent",
+      issue: "The page is missing a clear primary H1.",
+      whyItMatters: "Weak heading hierarchy makes intent harder to interpret and lowers ranking clarity.",
+      action: "Add one page-defining H1 and support it with clear H2 sections.",
+    });
+  }
+
+  if ((input.titleLength < 20 || input.titleLength > 60) && !hasId.has("meta-title")) {
+    merged.push({
+      id: "fallback-title-length",
+      severity: "critical",
+      pillar: "meta",
+      title: "Improve title length and focus",
+      issue: `The current title length (${input.titleLength}) is outside strong ranking ranges.`,
+      whyItMatters: "Title quality drives both relevance signals and click-through potential.",
+      action: "Rewrite the title to a clear 20-60 character format with primary intent early.",
+    });
+  }
+
+  if (input.internalLinks < 6 && !hasId.has("internal-links")) {
+    merged.push({
+      id: "fallback-internal-links",
+      severity: "high",
+      pillar: "internalLinking",
+      title: "Add internal links to strengthen page authority",
+      issue: `Only ${input.internalLinks} internal links were found.`,
+      whyItMatters: "Weak internal support reduces authority flow and slows ranking gains.",
+      action: "Add at least 3-6 contextual internal links from relevant pages.",
+    });
+  }
+
+  if (!input.schemaPresent && !hasId.has("schema-jsonld")) {
+    merged.push({
+      id: "fallback-schema",
+      severity: "high",
+      pillar: "schema",
+      title: "Add schema markup",
+      issue: "Schema is missing on this page.",
+      whyItMatters: "Structured data helps search engines understand page intent and entities.",
+      action: "Implement JSON-LD schema matched to the page type.",
+    });
+  }
+
+  if (input.wordCount < 900 && !hasId.has("fallback-content-depth")) {
+    merged.push({
+      id: "fallback-content-depth",
+      severity: "high",
+      pillar: "headings",
+      title: "Expand content depth",
+      issue: `Content depth is low (${input.wordCount} words) versus typical competing pages.`,
+      whyItMatters: "Thin pages struggle to cover intent breadth and lose semantic depth.",
+      action: `Add at least ${Math.max(350, 900 - input.wordCount)} words of useful, intent-matched content.`,
+    });
+  }
+
+  if (input.headingCount < 4 && !hasId.has("heading-depth")) {
+    merged.push({
+      id: "fallback-heading-structure",
+      severity: "high",
+      pillar: "headings",
+      title: "Improve heading structure",
+      issue: "The page has too few structured headings.",
+      whyItMatters: "Clear heading hierarchy improves scanability, relevance, and section-level targeting.",
+      action: "Add meaningful H2 and H3 sections around services, proof, and user questions.",
+    });
+  }
+
+  if (input.competitorGap >= 6 && !hasId.has("fallback-competitor-gap")) {
+    merged.push({
+      id: "fallback-competitor-gap",
+      severity: "high",
+      pillar: "internalLinking",
+      title: "Close competitor execution gaps",
+      issue: `Competing pages are ahead by ${input.competitorGap} points.`,
+      whyItMatters: "Ranking gaps persist when competitors have stronger structural and topical execution.",
+      action: "Ship the first three fixes this week, then rerun the audit to measure score lift.",
+    });
+  }
+
+  return merged
+    .sort((left, right) => {
+      const severityDelta = getFixPriorityValue(left.severity) - getFixPriorityValue(right.severity);
+      if (severityDelta !== 0) {
+        return severityDelta;
+      }
+
+      return getFixImpactValue(left) - getFixImpactValue(right);
+    })
+    .slice(0, 3);
+}
+
+function estimateScoreLiftFromSeverity(severity: FixSeverity): number {
+  if (severity === "critical") {
+    return 4;
+  }
+
+  if (severity === "high") {
+    return 3;
+  }
+
+  return 2;
+}
+
+function isKeywordAnchor(anchor: string): boolean {
+  const normalized = anchor.trim().toLowerCase();
+
+  if (!normalized || normalized === "related page link") {
+    return false;
+  }
+
+  const genericAnchors = new Set([
+    "click here",
+    "learn more",
+    "read more",
+    "here",
+    "more",
+    "details",
+    "this page",
+    "this service",
+  ]);
+
+  if (genericAnchors.has(normalized)) {
+    return false;
+  }
+
+  const hasLetters = /[a-z]/i.test(normalized);
+  const hasKeywordShape = normalized.split(/\s+/).length >= 1 && normalized.length >= 4;
+
+  return hasLetters && hasKeywordShape;
+}
+
 export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
+  const searchParams = useSearchParams();
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -258,6 +495,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [openDetailSections, setOpenDetailSections] = useState<string[]>([]);
   const [fixFeedbackMessage, setFixFeedbackMessage] = useState<string | null>(null);
+  const [scoreAdjustment, setScoreAdjustment] = useState(0);
   const topFixesRef = useRef<HTMLElement | null>(null);
   const detailsRef = useRef<HTMLElement | null>(null);
 
@@ -277,6 +515,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
         }
 
         setPayload(nextPayload);
+        setScoreAdjustment(0);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : "Unable to load report.");
       } finally {
@@ -345,11 +584,13 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
 
     const nextState = result.state;
 
-    setFixFeedbackMessage(
-      completed
-        ? feedbackMessage
-        : "This fix has been moved back into the active workflow.",
-    );
+    if (completed) {
+      setFixFeedbackMessage(feedbackMessage);
+      setScoreAdjustment((current) => Math.min(18, current + estimateScoreLiftFromSeverity(severity)));
+    } else {
+      setFixFeedbackMessage("This action has been moved back into the active workflow.");
+      setScoreAdjustment((current) => Math.max(0, current - estimateScoreLiftFromSeverity(severity)));
+    }
     window.setTimeout(() => setFixFeedbackMessage(null), 2400);
 
     setPayload((current) => {
@@ -366,11 +607,22 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   };
 
   const handleToggleFix = async (fix: AuditFix, completed: boolean) => {
+    const currentScore = payload ? payload.audit.score.total + scoreAdjustment : 0;
+    const projected = Math.min(100, currentScore + estimateScoreLiftFromSeverity(fix.severity));
+    const feedbackMessage =
+      fix.id === "internal-links" || fix.id === "fallback-internal-links"
+        ? `2 internal links added. Score updated from ${currentScore} to ${projected}.`
+        : fix.id === "meta-title" || fix.id === "fallback-title-length"
+          ? `Title improved. Score updated from ${currentScore} to ${projected}.`
+          : fix.id === "schema-jsonld" || fix.id === "fallback-schema"
+            ? `Schema markup added. Score updated from ${currentScore} to ${projected}.`
+            : `${fix.title} completed. Score updated from ${currentScore} to ${projected}.`;
+
     await persistCompletionState(
       fix.id,
       fix.severity,
       completed,
-      "This improves search visibility and page clarity.",
+      feedbackMessage,
     );
   };
 
@@ -385,7 +637,9 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
       opportunity.id,
       severity,
       completed,
-      "This strengthens internal discovery and topical support.",
+      completed
+        ? "2 internal links added. Score updated from your previous baseline."
+        : "Internal link action moved back to pending.",
     );
   };
 
@@ -415,32 +669,66 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   }
 
   const opportunity = payload.audit.score.opportunity ?? fallbackOpportunity(payload.audit.score);
-  const auditedPageUrl = normalizeOpportunityUrl(payload.audit.url);
+  const allInternalLinkOpportunities = payload.audit.crawl.internalLinking?.opportunities ?? [];
+  const auditedPageKey = normalizeComparablePageKey(payload.audit.url);
+  const sourceMatchedOpportunities = allInternalLinkOpportunities.filter(
+    (opportunity) =>
+      normalizeComparablePageKey(opportunity.sourceUrl) === auditedPageKey ||
+      normalizeOpportunityUrl(opportunity.sourceUrl) === normalizeOpportunityUrl(payload.audit.url),
+  );
   const internalLinkOpportunities =
-    payload.audit.crawl.internalLinking?.opportunities.filter(
-      (opportunity) => normalizeOpportunityUrl(opportunity.sourceUrl) === auditedPageUrl,
-    ) ?? [];
+    sourceMatchedOpportunities.length > 0
+      ? sourceMatchedOpportunities
+      : allInternalLinkOpportunities;
+  const dedupedInternalLinkOpportunities = [...new Map(
+    internalLinkOpportunities
+      .filter((opportunity) => isKeywordAnchor(opportunity.suggestedAnchor))
+      .map((opportunity) => [
+        `${normalizeOpportunityUrl(opportunity.sourceUrl)}|${normalizeOpportunityUrl(opportunity.targetUrl)}|${opportunity.suggestedAnchor.toLowerCase()}`,
+        opportunity,
+      ]),
+  ).values()];
+  const focusedInternalLinkOpportunities = dedupedInternalLinkOpportunities.slice(0, 5);
   const totalFixCount = payload.audit.fixes.length + internalLinkOpportunities.length;
+  const rawScore = (payload.audit.score_value ?? payload.audit.score.total) + scoreAdjustment;
+  const competitorData: CompetitorComparisonData = buildCompetitorComparisonDataFromAudit(
+    {
+      score: rawScore,
+      titleLength: payload.audit.title_length ?? payload.audit.crawl.title.trim().length,
+      h1Present: payload.audit.h1_present ?? (payload.audit.crawl.h1.trim().length > 0),
+      wordCount:
+        payload.audit.word_count ??
+        payload.audit.crawl.bodyText.split(/\s+/).filter(Boolean).length,
+      internalLinks: payload.audit.internal_links ?? payload.audit.crawl.internalLinkCount,
+      schemaPresent: payload.audit.schema_present ?? payload.audit.crawl.hasJsonLd,
+      url: payload.audit.url,
+    },
+    payload.competitorSnapshots,
+  );
+  const hasCompetitorComparison = competitorData.competitors.length > 0;
+  const averageCompetitorScore = hasCompetitorComparison
+    ? Math.round(
+        competitorData.competitors.reduce((sum, item) => sum + item.score, 0) /
+          competitorData.competitors.length,
+      )
+    : competitorData.user.score;
+  const competitorGap = Math.max(averageCompetitorScore - competitorData.user.score, 0);
+  const credibleScore = getCredibleScore(rawScore, totalFixCount, competitorGap);
+  const status = deriveAuditStatus(credibleScore, totalFixCount, competitorGap);
+  const heroMessaging = buildHeroMessaging(status);
   const cards = pillarEntries(payload.audit.score);
   const plan = buildOptimisationPlan(payload.audit.fixes, payload.audit.ai_output);
-  const topFixes = [...payload.audit.fixes]
-    .sort(
-      (left, right) =>
-        getFixPriorityValue(left.severity) - getFixPriorityValue(right.severity),
-    )
-    .slice(0, 3);
-  const competitorData = buildLiveCompetitorComparisonData(payload.audit);
-  const averageCompetitorScore = Math.round(
-    competitorData.competitors.reduce((sum, item) => sum + item.score, 0) /
-      competitorData.competitors.length,
-  );
-  const competitorGap = Math.max(averageCompetitorScore - competitorData.user.score, 0);
-  const latestHistoryEntry = payload.history[0] ?? null;
-  const remainingPriorityFixes = payload.audit.fixes.filter(
-    (fix) =>
-      !completedFixIds.includes(fix.id) &&
-      (fix.severity === "critical" || fix.severity === "high"),
-  ).length;
+  const topFixes = ensureTopFixCoverage({
+    fixes: payload.audit.fixes,
+    titleLength: competitorData.user.titleLength,
+    h1Present: competitorData.user.h1,
+    headingCount: payload.audit.crawl.headings.length,
+    wordCount: competitorData.user.wordCount,
+    internalLinks: competitorData.user.internalLinks,
+    schemaPresent: competitorData.user.schema,
+    competitorGap,
+  });
+  const competitorStatus = searchParams.get("competitorStatus");
   const rewrites = [
     {
       label: "Title" as const,
@@ -466,13 +754,16 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   ];
 
   return (
-    <main data-report-page className="min-h-screen bg-slate-950 px-5 py-10 text-slate-100 sm:px-7 lg:px-10">
+    <main data-report-page className="min-h-screen bg-slate-50 px-5 py-10 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100 sm:px-7 lg:px-10">
       <div className="mx-auto flex max-w-[92rem] flex-col gap-10">
         <AuditHeroSummary
           url={payload.audit.url}
-          score={payload.audit.score.total}
+          score={credibleScore}
           issuesFound={totalFixCount}
           competitorGap={competitorGap}
+          status={status}
+          headline={heroMessaging.headline}
+          summary={heroMessaging.summary}
           onPrimaryAction={() => {
             openDetailSection("full-audit-details");
             window.setTimeout(() => scrollToSection(detailsRef.current), 30);
@@ -480,10 +771,16 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           onSecondaryAction={() => scrollToSection(topFixesRef.current)}
         />
 
+        {competitorStatus === "failed" ? (
+          <section className="rounded-[1.4rem] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+            Your page audit completed, but the competitor page could not be analysed.
+          </section>
+        ) : null}
+
         <section ref={topFixesRef}>
           <TopFixesPanel
             fixes={topFixes}
-            remainingCount={Math.max(payload.audit.fixes.length - topFixes.length, 0)}
+            remainingCount={Math.max(totalFixCount - topFixes.length, 0)}
             onFixAction={() => {
               openDetailSection("full-audit-details");
               window.setTimeout(() => scrollToSection(detailsRef.current), 30);
@@ -495,15 +792,28 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           />
         </section>
 
-        <CompetitorGapSection data={competitorData} />
-
-        <PremiumInsightsLock onUnlock={() => handleLockedFeature("Competitor insights")} />
-
-        <ImprovementTracker
-          completedActions={completedFixCount}
-          scoreChange={latestHistoryEntry?.scoreDelta ?? null}
-          remainingPriorityFixes={remainingPriorityFixes}
+        <InternalLinkingOpportunities
+          opportunities={focusedInternalLinkOpportunities}
+          completedOpportunityIds={completedFixIds}
+          onToggleOpportunity={handleToggleOpportunity}
+          initialVisibleCount={5}
         />
+
+        {hasCompetitorComparison ? (
+          <CompetitorGapSection data={competitorData} />
+        ) : (
+          <section className="rounded-[1.7rem] border border-slate-200 bg-white p-6 text-sm text-slate-700 shadow-[0_16px_50px_-36px_rgba(15,23,42,0.4)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+              Competitor comparison
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">
+              Add a competitor URL to compare your page against another page
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
+              Run a comparison audit any time by adding a competitor page URL in the main audit form.
+            </p>
+          </section>
+        )}
 
         <section ref={detailsRef}>
           <AuditDetailsAccordion
@@ -514,13 +824,13 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                 id: "full-audit-details",
                 title: "Full audit details",
                 description:
-                  "Open the full recommendation list, internal linking tasks, and implementation rewrites when you need the deeper work area.",
+                  "Open the full recommendation list, internal linking tasks, and implementation rewrites when you need deeper detail.",
                 content: (
                   <div className="space-y-8">
                     <FixList
                       fixes={payload.audit.fixes}
                       images={payload.audit.crawl.images}
-                      internalLinkOpportunities={internalLinkOpportunities}
+                      internalLinkOpportunities={dedupedInternalLinkOpportunities}
                       completedFixIds={completedFixIds}
                       onToggleFix={handleToggleFix}
                       onToggleOpportunity={handleToggleOpportunity}
@@ -541,7 +851,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                 id: "scan-history",
                 title: "Scan history",
                 description:
-                  "Review previous scans, score movement, issue changes, and internal link gap changes over time.",
+                  "Review previous scans, score movement, and issue changes over time.",
                 content: (
                   <HistoryPanel
                     history={payload.history}
@@ -550,33 +860,40 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                 ),
               },
               {
+                id: "premium-insights",
+                title: "Premium insights",
+                description:
+                  "Unlock deeper competitor patterns and suggested next actions when needed.",
+                content: <PremiumInsightsLock onUnlock={() => handleLockedFeature("Competitor insights")} />,
+              },
+              {
                 id: "export-data",
                 title: "Export data",
                 description:
                   "Save the report or export the action plan when you need to share progress with a client or team.",
                 content: (
-                  <div className="rounded-[1.7rem] border border-slate-800 bg-slate-900 p-5">
+                  <div className="rounded-[1.7rem] border border-slate-200 bg-white p-5 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <button
                         type="button"
                         onClick={() => handleLockedFeature("Save report")}
-                        className="rounded-2xl bg-slate-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+                        className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700"
                       >
                         Save report
                       </button>
                       <button
                         type="button"
                         onClick={() => handleLockedFeature("Export data")}
-                        className="rounded-2xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-600 hover:bg-slate-800"
+                        className="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800"
                       >
                         Export data
                       </button>
                     </div>
-                    <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
+                    <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
                       Keep the main page focused on action. Open this only when you need to save or pass the audit on.
                     </p>
-                    <div className="mt-6 rounded-[1.4rem] border border-slate-800 bg-slate-950/70 px-4 py-4 text-sm leading-7 text-slate-300">
-                      <span className="font-semibold text-white">Current implementation plan:</span>{" "}
+                    <div className="mt-6 rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
+                      <span className="font-semibold text-slate-950 dark:text-white">Current implementation plan:</span>{" "}
                       {plan.steps.length} step{plan.steps.length === 1 ? "" : "s"} covering{" "}
                       {totalFixCount} tracked recommendation{totalFixCount === 1 ? "" : "s"}.
                     </div>

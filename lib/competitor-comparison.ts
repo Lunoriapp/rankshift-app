@@ -15,7 +15,7 @@ export interface CompetitorSnapshot {
 
 export interface CompetitorComparisonData {
   user: CompetitorSnapshot;
-  competitors: [CompetitorSnapshot, CompetitorSnapshot];
+  competitors: CompetitorSnapshot[];
 }
 
 export interface ComparisonMetricRow {
@@ -176,15 +176,7 @@ export function buildCompetitorComparisonDataFromAudit(
       internalLinks: input.internalLinks,
       schema: input.schemaPresent,
     },
-    competitors:
-      competitors.length === 2
-        ? competitors
-        : buildFallbackCompetitorsFromUserMetrics({
-            url: input.url,
-            score: input.score,
-            wordCount: input.wordCount,
-            internalLinks: input.internalLinks,
-          }),
+    competitors,
   };
 }
 
@@ -227,17 +219,29 @@ function numericTone(
 export function buildComparisonRows(
   data: CompetitorComparisonData,
 ): ComparisonMetricRow[] {
-  const [competitorA, competitorB] = data.competitors;
-  const scoreValues = [data.user.score, competitorA.score, competitorB.score];
-  const wordCountValues = [
-    data.user.wordCount,
-    competitorA.wordCount,
-    competitorB.wordCount,
-  ];
+  const competitorA = data.competitors[0] ?? {
+    name: "No competitor",
+    score: 0,
+    titleLength: 0,
+    h1: false,
+    wordCount: 0,
+    internalLinks: 0,
+    schema: false,
+  };
+  const competitorB = data.competitors[1] ?? {
+    name: "N/A",
+    score: 0,
+    titleLength: 0,
+    h1: false,
+    wordCount: 0,
+    internalLinks: 0,
+    schema: false,
+  };
+  const scoreValues = [data.user.score, ...data.competitors.map((item) => item.score)];
+  const wordCountValues = [data.user.wordCount, ...data.competitors.map((item) => item.wordCount)];
   const internalLinkValues = [
     data.user.internalLinks,
-    competitorA.internalLinks,
-    competitorB.internalLinks,
+    ...data.competitors.map((item) => item.internalLinks),
   ];
 
   return [
@@ -245,61 +249,81 @@ export function buildComparisonRows(
       key: "score",
       label: "SEO Score",
       userValue: `${data.user.score}`,
-      competitorAValue: `${competitorA.score}`,
-      competitorBValue: `${competitorB.score}`,
-      userTone: numericTone(data.user.score, scoreValues),
-      competitorATone: numericTone(competitorA.score, scoreValues),
-      competitorBTone: numericTone(competitorB.score, scoreValues),
+      competitorAValue: data.competitors[0] ? `${competitorA.score}` : "-",
+      competitorBValue: data.competitors[1] ? `${competitorB.score}` : "-",
+      userTone: numericTone(data.user.score, scoreValues.length > 1 ? scoreValues : [data.user.score, 0]),
+      competitorATone:
+        data.competitors[0] ? numericTone(competitorA.score, scoreValues) : "neutral",
+      competitorBTone:
+        data.competitors[1] ? numericTone(competitorB.score, scoreValues) : "neutral",
     },
     {
       key: "titleLength",
       label: "Title Length",
       userValue: `${data.user.titleLength}`,
-      competitorAValue: `${competitorA.titleLength}`,
-      competitorBValue: `${competitorB.titleLength}`,
+      competitorAValue: data.competitors[0] ? `${competitorA.titleLength}` : "-",
+      competitorBValue: data.competitors[1] ? `${competitorB.titleLength}` : "-",
       userTone: titleLengthTone(data.user.titleLength),
-      competitorATone: titleLengthTone(competitorA.titleLength),
-      competitorBTone: titleLengthTone(competitorB.titleLength),
+      competitorATone:
+        data.competitors[0] ? titleLengthTone(competitorA.titleLength) : "neutral",
+      competitorBTone:
+        data.competitors[1] ? titleLengthTone(competitorB.titleLength) : "neutral",
     },
     {
       key: "h1",
       label: "H1 Present",
       userValue: formatBoolean(data.user.h1),
-      competitorAValue: formatBoolean(competitorA.h1),
-      competitorBValue: formatBoolean(competitorB.h1),
+      competitorAValue: data.competitors[0] ? formatBoolean(competitorA.h1) : "-",
+      competitorBValue: data.competitors[1] ? formatBoolean(competitorB.h1) : "-",
       userTone: data.user.h1 ? "strong" : "weak",
-      competitorATone: competitorA.h1 ? "strong" : "weak",
-      competitorBTone: competitorB.h1 ? "strong" : "weak",
+      competitorATone: data.competitors[0] ? (competitorA.h1 ? "strong" : "weak") : "neutral",
+      competitorBTone: data.competitors[1] ? (competitorB.h1 ? "strong" : "weak") : "neutral",
     },
     {
       key: "wordCount",
       label: "Word Count",
       userValue: `${data.user.wordCount}`,
-      competitorAValue: `${competitorA.wordCount}`,
-      competitorBValue: `${competitorB.wordCount}`,
-      userTone: numericTone(data.user.wordCount, wordCountValues),
-      competitorATone: numericTone(competitorA.wordCount, wordCountValues),
-      competitorBTone: numericTone(competitorB.wordCount, wordCountValues),
+      competitorAValue: data.competitors[0] ? `${competitorA.wordCount}` : "-",
+      competitorBValue: data.competitors[1] ? `${competitorB.wordCount}` : "-",
+      userTone: numericTone(
+        data.user.wordCount,
+        wordCountValues.length > 1 ? wordCountValues : [data.user.wordCount, 0],
+      ),
+      competitorATone:
+        data.competitors[0] ? numericTone(competitorA.wordCount, wordCountValues) : "neutral",
+      competitorBTone:
+        data.competitors[1] ? numericTone(competitorB.wordCount, wordCountValues) : "neutral",
     },
     {
       key: "internalLinks",
       label: "Internal Links",
       userValue: `${data.user.internalLinks}`,
-      competitorAValue: `${competitorA.internalLinks}`,
-      competitorBValue: `${competitorB.internalLinks}`,
-      userTone: numericTone(data.user.internalLinks, internalLinkValues),
-      competitorATone: numericTone(competitorA.internalLinks, internalLinkValues),
-      competitorBTone: numericTone(competitorB.internalLinks, internalLinkValues),
+      competitorAValue: data.competitors[0] ? `${competitorA.internalLinks}` : "-",
+      competitorBValue: data.competitors[1] ? `${competitorB.internalLinks}` : "-",
+      userTone: numericTone(
+        data.user.internalLinks,
+        internalLinkValues.length > 1 ? internalLinkValues : [data.user.internalLinks, 0],
+      ),
+      competitorATone:
+        data.competitors[0]
+          ? numericTone(competitorA.internalLinks, internalLinkValues)
+          : "neutral",
+      competitorBTone:
+        data.competitors[1]
+          ? numericTone(competitorB.internalLinks, internalLinkValues)
+          : "neutral",
     },
     {
       key: "schema",
       label: "Schema Present",
       userValue: formatBoolean(data.user.schema),
-      competitorAValue: formatBoolean(competitorA.schema),
-      competitorBValue: formatBoolean(competitorB.schema),
+      competitorAValue: data.competitors[0] ? formatBoolean(competitorA.schema) : "-",
+      competitorBValue: data.competitors[1] ? formatBoolean(competitorB.schema) : "-",
       userTone: data.user.schema ? "strong" : "weak",
-      competitorATone: competitorA.schema ? "strong" : "weak",
-      competitorBTone: competitorB.schema ? "strong" : "weak",
+      competitorATone:
+        data.competitors[0] ? (competitorA.schema ? "strong" : "weak") : "neutral",
+      competitorBTone:
+        data.competitors[1] ? (competitorB.schema ? "strong" : "weak") : "neutral",
     },
   ];
 }
@@ -307,38 +331,52 @@ export function buildComparisonRows(
 export function buildCompetitorInsights(
   data: CompetitorComparisonData,
 ): CompetitorInsights {
-  const [competitorA, competitorB] = data.competitors;
+  if (data.competitors.length === 0) {
+    return {
+      reasons: [],
+      fixes: [],
+    };
+  }
+
   const averageWordCount = Math.round(
-    (competitorA.wordCount + competitorB.wordCount) / data.competitors.length,
+    data.competitors.reduce((sum, item) => sum + item.wordCount, 0) / data.competitors.length,
   );
   const averageInternalLinks = Math.round(
-    (competitorA.internalLinks + competitorB.internalLinks) / data.competitors.length,
+    data.competitors.reduce((sum, item) => sum + item.internalLinks, 0) /
+      data.competitors.length,
   );
 
   const reasons: string[] = [];
   const fixes: string[] = [];
 
   if (data.user.wordCount < averageWordCount) {
-    reasons.push("Shorter content");
-    fixes.push(`Add ${Math.max(800, averageWordCount - data.user.wordCount)} to 1200 words`);
+    const gap = averageWordCount - data.user.wordCount;
+    reasons.push(`Content depth is behind by about ${gap} words`);
+    fixes.push(`Expand this page by at least ${Math.max(500, gap)} words of useful topic coverage`);
   }
 
   if (!data.user.h1 || data.user.titleLength > 70 || data.user.titleLength < 40) {
-    reasons.push("Missing H1 or poor structure");
-    fixes.push("Add proper H1 and H2 structure");
+    reasons.push("Heading clarity is weaker than competing pages");
+    fixes.push("Use one clear H1 and add focused H2 sections for intent, proof, and next steps");
   }
 
   if (data.user.internalLinks < averageInternalLinks) {
-    reasons.push("Fewer internal links");
-    fixes.push("Add 5 to 10 internal links");
+    const gap = averageInternalLinks - data.user.internalLinks;
+    reasons.push(`Internal support is behind by about ${gap} links`);
+    fixes.push(`Add at least ${Math.max(3, gap)} contextual internal links from related pages`);
+  }
+
+  if (!data.user.schema) {
+    reasons.push("Competitors provide richer machine-readable context");
+    fixes.push("Add schema markup that matches this page type");
   }
 
   if (reasons.length === 0) {
-    reasons.push("Competitors still have stronger overall on-page execution");
+    reasons.push("Competitors are slightly ahead on on-page execution consistency");
   }
 
   if (fixes.length === 0) {
-    fixes.push("Tighten page structure and strengthen topical depth");
+    fixes.push("Tighten structure and keep improving topical depth where intent is strongest");
   }
 
   return { reasons, fixes };
