@@ -299,11 +299,11 @@ export default function HomePage() {
         </section>
 
         <section className="px-6 pb-8 sm:px-8 lg:px-10">
-          <div className="rounded-2xl bg-[#f1f0ff] px-4 py-7 text-center sm:px-8">
-            <h2 className="mx-auto max-w-3xl text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+          <div className="rounded-2xl bg-[#f1f0ff] px-4 py-6 text-center sm:px-8">
+            <h2 className="mx-auto max-w-3xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
               Run a scan and get your next SEO + AI actions
             </h2>
-            <p className="mx-auto mt-2 max-w-2xl text-lg leading-7 text-slate-600">
+            <p className="mx-auto mt-2 max-w-2xl text-base leading-6 text-slate-600 sm:text-lg sm:leading-7">
               Enter any URL to get fix priorities, internal link opportunities, and AI visibility improvements in seconds.
             </p>
             <div className="mx-auto max-w-2xl">
