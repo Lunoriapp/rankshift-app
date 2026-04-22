@@ -155,8 +155,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-      const sitePages = await crawlSiteForInternalLinking(normalizedUrl, 24);
-      crawl.internalLinking = findLinkOpportunities(sitePages, 24);
+      const sitePages = await crawlSiteForInternalLinking(normalizedUrl, 72);
+      const fullReport = findLinkOpportunities(sitePages, 48);
+      const sourceOnlyReport = findLinkOpportunities(sitePages, 16, {
+        sourceUrl: normalizedUrl,
+      });
+      const sourceOnlyKeys = new Set(
+        sourceOnlyReport.opportunities.map(
+          (entry) =>
+            `${entry.sourceUrl}|${entry.targetUrl}|${entry.suggestedAnchor.toLowerCase()}`,
+        ),
+      );
+      const merged = [
+        ...sourceOnlyReport.opportunities,
+        ...fullReport.opportunities.filter(
+          (entry) =>
+            !sourceOnlyKeys.has(
+              `${entry.sourceUrl}|${entry.targetUrl}|${entry.suggestedAnchor.toLowerCase()}`,
+            ),
+        ),
+      ].slice(0, 48);
+
+      crawl.internalLinking = {
+        ...fullReport,
+        opportunities: merged,
+      };
       console.debug("[audit-api][internal-linking][summary]", {
         sitePagesDiscovered: sitePages.length,
         opportunities: crawl.internalLinking.opportunities.length,

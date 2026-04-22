@@ -494,6 +494,78 @@ function sortUrlsForInternalLinking(urls: string[]): string[] {
   });
 }
 
+function extractXmlLocEntries(xml: string): string[] {
+  return Array.from(xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi))
+    .map((match) => match[1]?.trim() ?? "")
+    .filter(Boolean);
+}
+
+async function discoverSitemapUrls(startUrl: string, maxUrls = 180): Promise<string[]> {
+  try {
+    const start = new URL(startUrl);
+    const sitemapCandidates = [
+      new URL("/sitemap.xml", start.origin).toString(),
+      new URL("/sitemap_index.xml", start.origin).toString(),
+    ];
+    const discovered = new Set<string>();
+    const fetchedSitemaps = new Set<string>();
+    const queue = [...sitemapCandidates];
+
+    while (queue.length > 0 && discovered.size < maxUrls && fetchedSitemaps.size < 10) {
+      const sitemapUrl = queue.shift();
+
+      if (!sitemapUrl || fetchedSitemaps.has(sitemapUrl)) {
+        continue;
+      }
+
+      fetchedSitemaps.add(sitemapUrl);
+
+      const response = await fetch(sitemapUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; RankshiftBot/1.0; +https://rankshift-app.vercel.app)",
+          Accept: "application/xml,text/xml,text/plain,*/*",
+        },
+      }).catch(() => null);
+
+      if (!response?.ok) {
+        continue;
+      }
+
+      const xml = await response.text();
+      const locs = extractXmlLocEntries(xml);
+
+      for (const loc of locs) {
+        try {
+          const normalized = normalizeUrlForComparison(loc);
+          const parsed = new URL(normalized);
+
+          if (parsed.hostname !== start.hostname) {
+            continue;
+          }
+
+          if (parsed.pathname.endsWith(".xml")) {
+            if (!fetchedSitemaps.has(normalized) && !queue.includes(normalized)) {
+              queue.push(normalized);
+            }
+            continue;
+          }
+
+          if (shouldCrawlUrl(normalized, start.hostname)) {
+            discovered.add(normalized);
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    return sortUrlsForInternalLinking(Array.from(discovered)).slice(0, maxUrls);
+  } catch {
+    return [];
+  }
+}
+
 async function extractPageData(page: Page): Promise<PageExtractionResult> {
   const metadata = await page.evaluate<RawPageMetadata>(() => {
     const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, " ").trim();
@@ -742,9 +814,11 @@ async function crawlSiteForInternalLinkingWithBasicFetch(
 ): Promise<SitePageSnapshot[]> {
   const normalizedStartUrl = normalizeUrlForComparison(startUrl);
   const start = new URL(normalizedStartUrl);
+  const sitemapUrls = await discoverSitemapUrls(normalizedStartUrl, Math.min(220, maxPages * 6));
   const seededUrls = [
     normalizedStartUrl,
     ...PRIORITY_SECTION_SEEDS.map((path) => new URL(path, start.origin).toString()),
+    ...sitemapUrls,
   ].filter((url, index, values) => values.indexOf(url) === index);
   const queue: string[] = sortUrlsForInternalLinking(seededUrls);
   const visited = new Set<string>();
@@ -810,9 +884,11 @@ export async function crawlSiteForInternalLinking(
   try {
     const normalizedStartUrl = normalizeUrlForComparison(startUrl);
     const start = new URL(normalizedStartUrl);
+    const sitemapUrls = await discoverSitemapUrls(normalizedStartUrl, Math.min(220, maxPages * 6));
     const seededUrls = [
       normalizedStartUrl,
       ...PRIORITY_SECTION_SEEDS.map((path) => new URL(path, start.origin).toString()),
+      ...sitemapUrls,
     ].filter((url, index, values) => values.indexOf(url) === index);
     const queue: string[] = sortUrlsForInternalLinking(seededUrls);
     const visited = new Set<string>();

@@ -12,6 +12,10 @@ import type {
   SitePageTopicProfile,
 } from "./types";
 
+interface FindLinkOpportunitiesOptions {
+  sourceUrl?: string;
+}
+
 function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string): string {
   const base = `${sourceUrl}|${targetUrl}|${anchor}`
     .toLowerCase()
@@ -20,6 +24,14 @@ function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string
     .replace(/^-+|-+$/g, "");
 
   return `internal-link-${base}`.slice(0, 140);
+}
+
+function normalizeComparableUrl(url: string): string {
+  const parsed = new URL(url);
+  parsed.hash = "";
+  parsed.search = "";
+  parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+  return parsed.toString();
 }
 
 function shouldSkipPair(source: SitePageTopicProfile, target: SitePageTopicProfile): boolean {
@@ -295,8 +307,10 @@ function buildDebugEntry(
 export function findLinkOpportunities(
   pages: SitePageSnapshot[],
   maxOpportunities = 24,
+  options: FindLinkOpportunitiesOptions = {},
 ): InternalLinkingReport {
   const topicProfiles = analyseSiteTopics(pages);
+  const sourceUrlFilter = options.sourceUrl ? normalizeComparableUrl(options.sourceUrl) : null;
   const debug: InternalLinkDebugEntry[] = [];
   const suggestions: InternalLinkOpportunity[] = [];
   const seen = new Set<string>();
@@ -334,6 +348,10 @@ export function findLinkOpportunities(
   };
 
   for (const source of topicProfiles) {
+    if (sourceUrlFilter && normalizeComparableUrl(source.url) !== sourceUrlFilter) {
+      continue;
+    }
+
     const targetEvaluations: InternalLinkDebugEntry["targetEvaluations"] = [];
     let sourceOpportunities = 0;
 
