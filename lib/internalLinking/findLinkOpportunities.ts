@@ -3,7 +3,7 @@ import type { SitePageSnapshot } from "../crawler";
 import { analyseSiteTopics } from "./analyseSiteTopics";
 import { scoreOpportunity } from "./scoreOpportunity";
 import type { OpportunityScore } from "./scoreOpportunity";
-import { buildSnippet, normalizePhrase, tokenize } from "./shared";
+import { buildSnippet, normalizePhrase, phraseWordOverlap, tokenize } from "./shared";
 import { suggestAnchorText } from "./suggestAnchorText";
 import type {
   InternalLinkDebugEntry,
@@ -48,6 +48,58 @@ function shouldSkipPair(source: SitePageTopicProfile, target: SitePageTopicProfi
   }
 
   return false;
+}
+
+const GENERIC_TOPIC_TOKENS = new Set([
+  "guide",
+  "guides",
+  "service",
+  "services",
+  "blog",
+  "article",
+  "overview",
+  "information",
+  "help",
+  "legal",
+  "law",
+  "family",
+  "team",
+  "support",
+  "advice",
+  "solution",
+  "solutions",
+  "page",
+]);
+
+function hasStrongSourceTargetTopicFit(
+  source: SitePageTopicProfile,
+  target: SitePageTopicProfile,
+): boolean {
+  const sourceTokens = new Set(tokenize(`${source.title} ${source.h1} ${source.primaryTopic}`));
+  const targetTokens = new Set(tokenize(`${target.title} ${target.h1} ${target.primaryTopic}`));
+
+  if (sourceTokens.size === 0 || targetTokens.size === 0) {
+    return true;
+  }
+
+  const overlap = [...sourceTokens].filter((token) => targetTokens.has(token));
+
+  if (overlap.length >= 2) {
+    return true;
+  }
+
+  if (overlap.some((token) => !GENERIC_TOPIC_TOKENS.has(token))) {
+    return true;
+  }
+
+  const sourceTitleSignals = source.topicPhrases
+    .filter((phrase) => phrase.source === "title" || phrase.source === "h1")
+    .slice(0, 6);
+  const targetSignalText = `${target.title} ${target.h1} ${target.primaryTopic}`;
+
+  return sourceTitleSignals.some(
+    (phrase) => phraseWordOverlap(targetSignalText, phrase.phrase) >= 0.8,
+  );
 }
 
 function buildPlacementHint(sectionLabel: string, anchor: string): string {
@@ -280,6 +332,23 @@ export function findLinkOpportunities(
           decision: "skipped",
           reasons: ["Skipped because source and target are the same page or already linked."],
         });
+        continue;
+      }
+
+      if (!hasStrongSourceTargetTopicFit(source, target)) {
+        targetEvaluations.push({
+          targetUrl: target.url,
+          targetTitle: target.title,
+          candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
+          candidateAnchorPhrases: [],
+          existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+          matchedSnippets: [],
+          decision: "skipped",
+          reasons: [
+            "Skipped because target topic does not sufficiently align with the source page title/H1 theme.",
+          ],
+        });
+        diagnostics.droppedByFilter.anchorMatchOrSimilarity += 1;
         continue;
       }
 
