@@ -13,7 +13,8 @@ export interface AuditFix {
     | "images"
     | "performance"
     | "schema"
-    | "internalLinking";
+    | "internalLinking"
+    | "aiVisibility";
   title: string;
   issue: string;
   whyItMatters: string;
@@ -170,6 +171,110 @@ export function buildAuditFixes(
         "Weak internal linking reduces topical relevance, limits authority flow, and makes it harder for users to reach the most important pages.",
       action:
         "Add 2-3 contextual internal links to the most relevant service, category, or proof pages using descriptive anchor text that fits naturally in the copy.",
+    });
+  }
+
+  const aiVisibilityChecks = score.pillars.aiVisibility?.checks ?? [];
+  const summaryCheck = aiVisibilityChecks.find((check) =>
+    check.label.toLowerCase().includes("summary answer near top"),
+  );
+  const faqCheck = aiVisibilityChecks.find((check) =>
+    check.label.toLowerCase().includes("faq-style"),
+  );
+  const authorCheck = aiVisibilityChecks.find((check) =>
+    check.label.toLowerCase().includes("author and credibility"),
+  );
+  const entityCheck = aiVisibilityChecks.find((check) =>
+    check.label.toLowerCase().includes("entity clarity"),
+  );
+  const schemaVisibilityCheck = aiVisibilityChecks.find((check) =>
+    check.label.toLowerCase().includes("basic schema signals"),
+  );
+  const internalTopicCheck = aiVisibilityChecks.find((check) =>
+    check.label.toLowerCase().includes("internal links support"),
+  );
+
+  if (summaryCheck && !summaryCheck.passed) {
+    pushFix(fixes, {
+      id: "ai-summary-answer",
+      severity: "high",
+      pillar: "aiVisibility",
+      title: "Add a clear summary answer near the top",
+      issue: "The page does not show a concise answer-style summary in the opening section.",
+      whyItMatters:
+        "AI systems often extract short, direct answers first. Without one, your page is less likely to be chosen in AI summaries.",
+      action:
+        "Add a 50-120 word summary near the top that directly answers the main question and includes the primary topic phrase.",
+    });
+  }
+
+  if (faqCheck && !faqCheck.passed) {
+    pushFix(fixes, {
+      id: "ai-faq-section",
+      severity: "medium",
+      pillar: "aiVisibility",
+      title: "Add an FAQ section with direct Q&A format",
+      issue: "FAQ-style question-and-answer content is missing or too weak.",
+      whyItMatters:
+        "Q&A content helps AI systems understand user intent and can improve visibility in AI-generated summaries.",
+      action:
+        "Add 3-5 FAQ questions with short direct answers that match how users ask the topic.",
+    });
+  }
+
+  if (authorCheck && !authorCheck.passed) {
+    pushFix(fixes, {
+      id: "ai-author-credibility",
+      severity: "medium",
+      pillar: "aiVisibility",
+      title: "Add author and expertise details",
+      issue: "The page does not clearly show who wrote or reviewed the content and why they are credible.",
+      whyItMatters:
+        "AI systems and users both rely on trust signals. Clear authorship can improve confidence and citation potential.",
+      action:
+        "Add author name, role, and short expertise line near the top or end of the page.",
+    });
+  }
+
+  if (entityCheck && !entityCheck.passed) {
+    pushFix(fixes, {
+      id: "ai-entity-clarity",
+      severity: "medium",
+      pillar: "aiVisibility",
+      title: "Improve entity clarity in the copy",
+      issue: "Who the page is for, what it offers, and where it applies are not explicit enough.",
+      whyItMatters:
+        "AI systems perform better when pages clearly state key entities and context.",
+      action:
+        "Add one short section that clearly states who you help, what the service/content is, and where it applies.",
+    });
+  }
+
+  if (internalTopicCheck && !internalTopicCheck.passed) {
+    pushFix(fixes, {
+      id: "ai-topic-internal-links",
+      severity: "medium",
+      pillar: "aiVisibility",
+      title: "Add internal links that reinforce topic relationships",
+      issue: "Internal links are not strongly supporting related topic pages.",
+      whyItMatters:
+        "Connected topical pages help AI systems understand authority and context across your site.",
+      action:
+        "Add links from this page to closely related pages using natural anchor phrases already present in the content.",
+    });
+  }
+
+  if (schemaVisibilityCheck && !schemaVisibilityCheck.passed) {
+    pushFix(fixes, {
+      id: "ai-schema-signals",
+      severity: "medium",
+      pillar: "aiVisibility",
+      title: "Add basic schema types for AI visibility",
+      issue: "Relevant schema signals are missing or not detectable.",
+      whyItMatters:
+        "Schema gives AI systems clearer machine-readable context for page type and content.",
+      action:
+        "Add JSON-LD schema using the best fit for this page, such as FAQ, Article, or Organization.",
     });
   }
 

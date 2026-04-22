@@ -256,6 +256,54 @@ const score: ScoreBreakdown = {
         },
       ],
     },
+    aiVisibility: {
+      score: 8,
+      maxScore: 20,
+      checks: [
+        {
+          label: "Clear summary answer near top (50-120 words)",
+          passed: false,
+          score: 0,
+          maxScore: 4,
+        },
+        {
+          label: "Structured headings and sections",
+          passed: true,
+          score: 3,
+          maxScore: 3,
+        },
+        {
+          label: "FAQ-style questions and answers",
+          passed: false,
+          score: 0,
+          maxScore: 3,
+        },
+        {
+          label: "Author and credibility signals",
+          passed: false,
+          score: 0,
+          maxScore: 3,
+        },
+        {
+          label: "Entity clarity (who, what, where)",
+          passed: true,
+          score: 3,
+          maxScore: 3,
+        },
+        {
+          label: "Internal links support topic relationships",
+          passed: true,
+          score: 2,
+          maxScore: 2,
+        },
+        {
+          label: "Basic schema signals (FAQ, Article, Organization)",
+          passed: false,
+          score: 0,
+          maxScore: 2,
+        },
+      ],
+    },
   },
 };
 

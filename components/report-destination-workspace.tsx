@@ -157,6 +157,11 @@ export function ReportDestinationWorkspace({ reportId, section }: ReportDestinat
     { key: "Performance", value: payload.audit.score.pillars.performance.score, max: payload.audit.score.pillars.performance.maxScore },
     { key: "Schema", value: payload.audit.score.pillars.schema.score, max: payload.audit.score.pillars.schema.maxScore },
     { key: "Internal linking", value: payload.audit.score.pillars.internalLinking.score, max: payload.audit.score.pillars.internalLinking.maxScore },
+    {
+      key: "AI & LLM Visibility",
+      value: payload.audit.score.pillars.aiVisibility?.score ?? 0,
+      max: payload.audit.score.pillars.aiVisibility?.maxScore ?? 20,
+    },
   ];
 
   return (

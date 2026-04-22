@@ -137,6 +137,13 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     );
     const linkOps = (sourceMatched.length > 0 ? sourceMatched : allLinkOps).slice(0, 3);
     const primaryFix = getPrimaryFix(payload.audit.fixes);
+    const aiPillar = payload.audit.score.pillars.aiVisibility;
+    const aiReadiness = aiPillar
+      ? Math.round((aiPillar.score / Math.max(1, aiPillar.maxScore)) * 100)
+      : 0;
+    const aiChecks = aiPillar?.checks ?? [];
+    const aiIssues = aiChecks.filter((check) => !check.passed);
+    const aiFixes = payload.audit.fixes.filter((fix) => fix.pillar === "aiVisibility");
 
     return {
       score,
@@ -145,6 +152,9 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
       primaryFix,
       linkOps,
       conciseFixes: payload.audit.fixes.slice(0, 8),
+      aiReadiness,
+      aiIssues,
+      aiFixes,
     };
   }, [payload]);
 
@@ -200,6 +210,40 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
             {reportSummary.primaryFix?.whyItMatters ??
               "This page is in strong condition. Focus on iterative content improvements and internal link support."}
           </p>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">AI &amp; LLM Visibility</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">How ready this page is for AI summaries</h2>
+          <div className="mt-4 inline-flex items-baseline gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <span className="text-3xl font-semibold tracking-tight text-slate-950">{reportSummary.aiReadiness}</span>
+            <span className="text-sm text-slate-500">/ 100 readiness score</span>
+          </div>
+
+          {reportSummary.aiIssues.length > 0 ? (
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-900">Issues detected</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                  {reportSummary.aiIssues.map((issue) => (
+                    <li key={issue.label}>{issue.label}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-900">Recommended fixes</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                  {reportSummary.aiFixes.slice(0, 6).map((fix) => (
+                    <li key={fix.id}>{fix.action}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-slate-600">
+              This page has strong AI visibility signals. Keep content fresh and continue improving topical internal links.
+            </p>
+          )}
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-8">

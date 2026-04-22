@@ -32,6 +32,7 @@ export interface ScoreBreakdown {
     performance: ScorePillar;
     schema: ScorePillar;
     internalLinking: ScorePillar;
+    aiVisibility: ScorePillar;
   };
 }
 
@@ -39,7 +40,7 @@ const TITLE_MIN = 10;
 const TITLE_MAX = 60;
 const DESCRIPTION_MIN = 50;
 const DESCRIPTION_MAX = 160;
-const RAW_TOTAL_MAX = 120;
+const RAW_TOTAL_MAX = 140;
 const DISPLAY_TOTAL_MAX = 100;
 
 function getWordCount(value: string): number {
@@ -181,6 +182,78 @@ function getInternalLinkOpportunityScore(data: CrawlResult): number {
   return 0;
 }
 
+function splitIntoSentences(value: string): string[] {
+  return value
+    .split(/(?<=[.!?])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function wordCount(value: string): number {
+  return value.split(/\s+/).filter(Boolean).length;
+}
+
+function hasSummaryAnswerNearTop(data: CrawlResult): boolean {
+  const topBlocks = data.contentSections
+    .filter((section) => section.type === "paragraph")
+    .slice(0, 2)
+    .map((section) => section.text.trim())
+    .filter(Boolean);
+
+  const candidate = topBlocks[0] ?? splitIntoSentences(data.bodyText).slice(0, 2).join(" ");
+  const count = wordCount(candidate);
+
+  if (count < 50 || count > 120) {
+    return false;
+  }
+
+  const topicTokens = new Set(
+    `${data.h1} ${data.title}`
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length >= 4),
+  );
+  const candidateTokens = candidate
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 4);
+  const overlap = candidateTokens.filter((token) => topicTokens.has(token)).length;
+
+  return overlap >= 2;
+}
+
+function hasFaqQaSignals(data: CrawlResult): boolean {
+  const headingQuestionCount = data.headings.filter((heading) => heading.text.includes("?")).length;
+  const questionSentenceCount = splitIntoSentences(data.bodyText).filter((sentence) =>
+    /^[A-Z].*\?$/.test(sentence),
+  ).length;
+  const faqKeywordPresent = /\bfaq\b|frequently asked questions/i.test(data.bodyText);
+
+  return headingQuestionCount >= 1 || questionSentenceCount >= 2 || faqKeywordPresent;
+}
+
+function hasAuthorCredibilitySignals(data: CrawlResult): boolean {
+  return /\bwritten by\b|\breviewed by\b|\bauthor\b|\bexpert\b|\bqualified\b|\byears of experience\b|\bsolicitor\b/i.test(
+    data.bodyText,
+  );
+}
+
+function hasEntityClaritySignals(data: CrawlResult): boolean {
+  const hasCorePageIdentity = data.title.trim().length > 0 && data.h1.trim().length > 0;
+  const hasWhoWhatWhereSignals =
+    /\bbased in\b|\blocated in\b|\bserving\b|\bfor\b|\bour team\b|\bwe help\b/i.test(data.bodyText);
+
+  return hasCorePageIdentity && hasWhoWhatWhereSignals;
+}
+
+function hasStructuredHeadingSections(data: CrawlResult): boolean {
+  return data.headings.length >= 3 && data.contentSections.length >= 4;
+}
+
+function hasSchemaVisibilitySignals(data: CrawlResult): boolean {
+  return data.hasJsonLd;
+}
+
 function normalizeToDisplayScore(value: number, rawMax = RAW_TOTAL_MAX): number {
   return Math.max(0, Math.min(DISPLAY_TOTAL_MAX, Math.round((value / rawMax) * DISPLAY_TOTAL_MAX)));
 }
@@ -296,6 +369,13 @@ export function scoreAudit(data: CrawlResult): ScoreBreakdown {
   const performanceScore = getPerformanceScore(data.loadTimeMs);
   const internalLinkCoverageScore = getInternalLinkCoverageScore(data.internalLinkCount);
   const internalLinkOpportunityScore = getInternalLinkOpportunityScore(data);
+  const summaryNearTop = hasSummaryAnswerNearTop(data);
+  const structuredSections = hasStructuredHeadingSections(data);
+  const faqQaSignals = hasFaqQaSignals(data);
+  const authorSignals = hasAuthorCredibilitySignals(data);
+  const entitySignals = hasEntityClaritySignals(data);
+  const schemaSignals = hasSchemaVisibilitySignals(data);
+  const internalTopicSupport = data.internalLinkCount >= 3;
 
   const meta = buildPillar(
     [
@@ -387,13 +467,62 @@ export function scoreAudit(data: CrawlResult): ScoreBreakdown {
     20,
   );
 
+  const aiVisibility = buildPillar(
+    [
+      {
+        label: "Clear summary answer near top (50-120 words)",
+        passed: summaryNearTop,
+        score: summaryNearTop ? 4 : 0,
+        maxScore: 4,
+      },
+      {
+        label: "Structured headings and sections",
+        passed: structuredSections,
+        score: structuredSections ? 3 : 0,
+        maxScore: 3,
+      },
+      {
+        label: "FAQ-style questions and answers",
+        passed: faqQaSignals,
+        score: faqQaSignals ? 3 : 0,
+        maxScore: 3,
+      },
+      {
+        label: "Author and credibility signals",
+        passed: authorSignals,
+        score: authorSignals ? 3 : 0,
+        maxScore: 3,
+      },
+      {
+        label: "Entity clarity (who, what, where)",
+        passed: entitySignals,
+        score: entitySignals ? 3 : 0,
+        maxScore: 3,
+      },
+      {
+        label: "Internal links support topic relationships",
+        passed: internalTopicSupport,
+        score: internalTopicSupport ? 2 : 0,
+        maxScore: 2,
+      },
+      {
+        label: "Basic schema signals (FAQ, Article, Organization)",
+        passed: schemaSignals,
+        score: schemaSignals ? 2 : 0,
+        maxScore: 2,
+      },
+    ],
+    20,
+  );
+
   const total =
     meta.score +
     headings.score +
     images.score +
     performance.score +
     schema.score +
-    internalLinking.score;
+    internalLinking.score +
+    aiVisibility.score;
 
   const qualityPenalty = getQualityPenalty(data);
   const adjustedTotal = Math.max(0, total - qualityPenalty);
@@ -417,6 +546,7 @@ export function scoreAudit(data: CrawlResult): ScoreBreakdown {
       performance,
       schema,
       internalLinking,
+      aiVisibility,
     },
   };
 }
