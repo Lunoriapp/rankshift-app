@@ -249,7 +249,7 @@ export default function HomePage() {
               <p className="text-sm font-semibold uppercase tracking-[0.13em] text-indigo-600">
                 Contextual. Relevant. Actionable.
               </p>
-              <h3 className="mt-3 text-5xl font-semibold tracking-tight text-slate-950">
+              <h3 className="mt-3 text-4xl font-semibold leading-[1.08] tracking-tight text-slate-950 sm:text-[2.8rem]">
                 Internal links from your existing page content
               </h3>
               <p className="mt-4 text-xl leading-8 text-slate-600">
