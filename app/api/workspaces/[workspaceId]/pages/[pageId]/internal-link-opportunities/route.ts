@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getUserFromAccessToken } from "@/lib/supabase";
 import type { InternalLinkOpportunity } from "@/lib/internalLinking/types";
 import {
   listInternalLinkOpportunitiesByWorkspaceAndPage,
@@ -37,15 +38,39 @@ function isInternalLinkOpportunity(value: unknown): value is InternalLinkOpportu
   );
 }
 
+async function requireAccessToken(request: NextRequest): Promise<string | null> {
+  const authorization = request.headers.get("authorization");
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authorization.slice("Bearer ".length).trim();
+
+  if (!token) {
+    return null;
+  }
+
+  const user = await getUserFromAccessToken(token);
+  return user ? token : null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { workspaceId: string; pageId: string } },
 ): Promise<NextResponse> {
   try {
+    const accessToken = await requireAccessToken(request);
+
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
+    }
+
     const auditId = request.nextUrl.searchParams.get("auditId") ?? undefined;
     const opportunities = await listInternalLinkOpportunitiesByWorkspaceAndPage({
       workspaceId: params.workspaceId,
       pageId: params.pageId,
+      accessToken,
       auditId,
     });
 
@@ -62,6 +87,12 @@ export async function POST(
   { params }: { params: { workspaceId: string; pageId: string } },
 ): Promise<NextResponse> {
   try {
+    const accessToken = await requireAccessToken(request);
+
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
+    }
+
     const body = (await request.json()) as InternalLinkSyncBody;
 
     if (
@@ -78,6 +109,7 @@ export async function POST(
     const opportunities = await syncInternalLinkOpportunitiesForPage({
       workspaceId: params.workspaceId,
       pageId: params.pageId,
+      accessToken,
       auditId: body.auditId,
       opportunities: body.opportunities,
     });

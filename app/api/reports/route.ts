@@ -17,18 +17,19 @@ async function requireUser(request: NextRequest) {
     return null;
   }
 
-  return getUserFromAccessToken(token);
+  const user = await getUserFromAccessToken(token);
+  return user ? { user, token } : null;
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const user = await requireUser(request);
+    const auth = await requireUser(request);
 
-    if (!user) {
+    if (!auth) {
       return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
     }
 
-    const reports = await listSavedReportsByUser(user.id);
+    const reports = await listSavedReportsByUser(auth.user.id, auth.token);
     return NextResponse.json({ reports });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load reports.";

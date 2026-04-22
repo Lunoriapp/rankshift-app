@@ -3,25 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { AuditDetailsAccordion } from "@/components/AuditDetailsAccordion";
 import { AuditHeroSummary } from "@/components/AuditHeroSummary";
 import { CompetitorGapSection } from "@/components/CompetitorGapSection";
-import { FixList } from "@/components/fix-list";
-import { HistoryPanel } from "@/components/history-panel";
+import { ExploreMoreLinks } from "@/components/explore-more-links";
+import { ImprovementTracker } from "@/components/ImprovementTracker";
 import { InternalLinkingOpportunities } from "@/components/internal-linking-opportunities";
-import { PremiumInsightsLock } from "@/components/PremiumInsightsLock";
-import { RewritePanel } from "@/components/rewrite-panel";
-import { ScoreCards, type ScoreCardItem } from "@/components/score-cards";
 import { TopFixesPanel } from "@/components/TopFixesPanel";
-import { UpgradeModal } from "@/components/upgrade-modal";
 import type { AuditFix, FixSeverity } from "@/lib/audit-fixes";
-import { buildOptimisationPlan } from "@/lib/audit-fixes";
 import {
   buildCompetitorComparisonDataFromAudit,
   type CompetitorComparisonData,
 } from "@/lib/competitor-comparison";
 import type { InternalLinkOpportunity } from "@/lib/internalLinking/types";
-import type { OpportunityAssessment, ScoreBreakdown, ScorePillar } from "@/lib/scorer";
+import type { ScoreBreakdown, ScorePillar } from "@/lib/scorer";
 import type {
   AuditFixStateRecord,
   AuditHistoryEntry,
@@ -71,10 +65,10 @@ function getFailedChecks(pillar: ScorePillar) {
 }
 
 function summarizePillar(
-  key: ScoreCardItem["key"],
+  key: string,
   pillar: ScorePillar,
   score: ScoreBreakdown,
-): Pick<ScoreCardItem, "reason" | "impact"> {
+): { reason: string; impact: string } {
   const failed = getFailedChecks(pillar);
 
   if (key === "Meta") {
@@ -157,8 +151,8 @@ function summarizePillar(
       };
 }
 
-function pillarEntries(score: ScoreBreakdown): ScoreCardItem[] {
-  const entries: Array<{ key: ScoreCardItem["key"]; value: ScorePillar }> = [
+function pillarEntries(score: ScoreBreakdown): Array<{ key: string; value: ScorePillar; reason: string; impact: string }> {
+  const entries: Array<{ key: string; value: ScorePillar }> = [
     { key: "Meta", value: score.pillars.meta },
     { key: "Headings", value: score.pillars.headings },
     { key: "Images", value: score.pillars.images },
@@ -172,26 +166,6 @@ function pillarEntries(score: ScoreBreakdown): ScoreCardItem[] {
     value,
     ...summarizePillar(key, value, score),
   }));
-}
-
-function fallbackOpportunity(score: ScoreBreakdown): OpportunityAssessment {
-  const label: OpportunityAssessment["label"] =
-    score.total >= 80
-      ? "High Potential"
-      : score.total >= 65
-        ? "Strong"
-        : score.total >= 45
-          ? "Emerging"
-          : "At Risk";
-
-  return {
-    score: score.total,
-    projectedScore: score.total,
-    uplift: 0,
-    label,
-    rationale:
-      "Opportunity score unavailable for this report version. Run a fresh audit to unlock the full growth estimate.",
-  };
 }
 
 function getIntent(label: "Title" | "Meta Description" | "H1"): string {
@@ -491,13 +465,9 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [lockedFeature, setLockedFeature] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [openDetailSections, setOpenDetailSections] = useState<string[]>([]);
   const [fixFeedbackMessage, setFixFeedbackMessage] = useState<string | null>(null);
   const [scoreAdjustment, setScoreAdjustment] = useState(0);
   const topFixesRef = useRef<HTMLElement | null>(null);
-  const detailsRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -535,16 +505,6 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   );
 
   const completedFixCount = completedFixIds.length;
-
-  const toggleDetailSection = (id: string) => {
-    setOpenDetailSections((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
-    );
-  };
-
-  const openDetailSection = (id: string) => {
-    setOpenDetailSections((current) => (current.includes(id) ? current : [...current, id]));
-  };
 
   const scrollToSection = (element: HTMLElement | null) => {
     element?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -643,11 +603,6 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     );
   };
 
-  const handleLockedFeature = (feature: string) => {
-    setLockedFeature(feature);
-    setIsModalOpen(true);
-  };
-
   if (isLoading) {
     return (
       <main data-report-page className="min-h-screen bg-slate-50 px-5 py-10 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100 sm:px-7 lg:px-10">
@@ -668,7 +623,6 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     );
   }
 
-  const opportunity = payload.audit.score.opportunity ?? fallbackOpportunity(payload.audit.score);
   const allInternalLinkOpportunities = payload.audit.crawl.internalLinking?.opportunities ?? [];
   const auditedPageKey = normalizeComparablePageKey(payload.audit.url);
   const sourceMatchedOpportunities = allInternalLinkOpportunities.filter(
@@ -717,7 +671,6 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const status = deriveAuditStatus(credibleScore, totalFixCount, competitorGap);
   const heroMessaging = buildHeroMessaging(status);
   const cards = pillarEntries(payload.audit.score);
-  const plan = buildOptimisationPlan(payload.audit.fixes, payload.audit.ai_output);
   const topFixes = ensureTopFixCoverage({
     fixes: payload.audit.fixes,
     titleLength: competitorData.user.titleLength,
@@ -729,6 +682,13 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     competitorGap,
   });
   const competitorStatus = searchParams.get("competitorStatus");
+  const isPaid = searchParams.get("plan") === "paid";
+  const latestHistoryEntry = payload.history[0] ?? null;
+  const remainingPriorityFixes = payload.audit.fixes.filter(
+    (fix) =>
+      !completedFixIds.includes(fix.id) &&
+      (fix.severity === "critical" || fix.severity === "high"),
+  ).length;
   const rewrites = [
     {
       label: "Title" as const,
@@ -765,8 +725,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           headline={heroMessaging.headline}
           summary={heroMessaging.summary}
           onPrimaryAction={() => {
-            openDetailSection("full-audit-details");
-            window.setTimeout(() => scrollToSection(detailsRef.current), 30);
+            scrollToSection(topFixesRef.current);
           }}
           onSecondaryAction={() => scrollToSection(topFixesRef.current)}
         />
@@ -782,12 +741,10 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
             fixes={topFixes}
             remainingCount={Math.max(totalFixCount - topFixes.length, 0)}
             onFixAction={() => {
-              openDetailSection("full-audit-details");
-              window.setTimeout(() => scrollToSection(detailsRef.current), 30);
+              window.location.assign(`/report/${reportId}/details`);
             }}
             onViewAll={() => {
-              openDetailSection("full-audit-details");
-              window.setTimeout(() => scrollToSection(detailsRef.current), 30);
+              window.location.assign(`/report/${reportId}/details`);
             }}
           />
         </section>
@@ -815,100 +772,14 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           </section>
         )}
 
-        <section ref={detailsRef}>
-          <AuditDetailsAccordion
-            openSectionIds={openDetailSections}
-            onToggleSection={toggleDetailSection}
-            sections={[
-              {
-                id: "full-audit-details",
-                title: "Full audit details",
-                description:
-                  "Open the full recommendation list, internal linking tasks, and implementation rewrites when you need deeper detail.",
-                content: (
-                  <div className="space-y-8">
-                    <FixList
-                      fixes={payload.audit.fixes}
-                      images={payload.audit.crawl.images}
-                      internalLinkOpportunities={dedupedInternalLinkOpportunities}
-                      completedFixIds={completedFixIds}
-                      onToggleFix={handleToggleFix}
-                      onToggleOpportunity={handleToggleOpportunity}
-                      feedbackMessage={fixFeedbackMessage}
-                    />
-                    <RewritePanel rewrites={rewrites} />
-                  </div>
-                ),
-              },
-              {
-                id: "scoring-logic",
-                title: "Scoring logic",
-                description:
-                  "See how each category is contributing to the score and where stronger optimisation signals can still lift the page.",
-                content: <ScoreCards items={cards} />,
-              },
-              {
-                id: "scan-history",
-                title: "Scan history",
-                description:
-                  "Review previous scans, score movement, and issue changes over time.",
-                content: (
-                  <HistoryPanel
-                    history={payload.history}
-                    onLockedFeature={handleLockedFeature}
-                  />
-                ),
-              },
-              {
-                id: "premium-insights",
-                title: "Premium insights",
-                description:
-                  "Unlock deeper competitor patterns and suggested next actions when needed.",
-                content: <PremiumInsightsLock onUnlock={() => handleLockedFeature("Competitor insights")} />,
-              },
-              {
-                id: "export-data",
-                title: "Export data",
-                description:
-                  "Save the report or export the action plan when you need to share progress with a client or team.",
-                content: (
-                  <div className="rounded-[1.7rem] border border-slate-200 bg-white p-5 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <button
-                        type="button"
-                        onClick={() => handleLockedFeature("Save report")}
-                        className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700"
-                      >
-                        Save report
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleLockedFeature("Export data")}
-                        className="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800"
-                      >
-                        Export data
-                      </button>
-                    </div>
-                    <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
-                      Keep the main page focused on action. Open this only when you need to save or pass the audit on.
-                    </p>
-                    <div className="mt-6 rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 dark:border-slate-800 dark:bg-slate-950/70 dark:text-slate-300">
-                      <span className="font-semibold text-slate-950 dark:text-white">Current implementation plan:</span>{" "}
-                      {plan.steps.length} step{plan.steps.length === 1 ? "" : "s"} covering{" "}
-                      {totalFixCount} tracked recommendation{totalFixCount === 1 ? "" : "s"}.
-                    </div>
-                  </div>
-                ),
-              },
-            ]}
-          />
-        </section>
+        <ImprovementTracker
+          completedActions={completedFixCount}
+          scoreChange={latestHistoryEntry?.scoreDelta ?? null}
+          remainingPriorityFixes={remainingPriorityFixes}
+        />
+
+        <ExploreMoreLinks reportId={reportId} isPaid={isPaid} />
       </div>
-      <UpgradeModal
-        isOpen={isModalOpen}
-        feature={lockedFeature}
-        onClose={() => setIsModalOpen(false)}
-      />
     </main>
   );
 }

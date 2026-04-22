@@ -307,6 +307,8 @@ export async function generateFixes(
   crawl: CrawlResult,
   score: ScoreBreakdown,
 ): Promise<AiFixOutput> {
+  // Optional AI hook: when OPENAI_API_KEY is absent, we intentionally use the
+  // local deterministic generator so audits still run without external secrets.
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {

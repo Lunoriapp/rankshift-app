@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getUserFromAccessToken } from "@/lib/supabase";
 import { setInternalLinkOpportunityCompletionState } from "@/lib/workspace-activity";
 
 export const runtime = "nodejs";
@@ -8,6 +9,23 @@ interface InternalLinkCompletionBody {
   completed?: unknown;
   pageId?: unknown;
   auditId?: unknown;
+}
+
+async function requireAuth(request: NextRequest): Promise<{ accessToken: string } | null> {
+  const authorization = request.headers.get("authorization");
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authorization.slice("Bearer ".length).trim();
+
+  if (!token) {
+    return null;
+  }
+
+  const user = await getUserFromAccessToken(token);
+  return user ? { accessToken: token } : null;
 }
 
 export async function PATCH(
@@ -28,7 +46,14 @@ export async function PATCH(
       );
     }
 
+    const auth = await requireAuth(request);
+
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
+    }
+
     const opportunity = await setInternalLinkOpportunityCompletionState({
+      accessToken: auth.accessToken,
       externalKey: params.id,
       pageId: body.pageId,
       auditId: body.auditId,

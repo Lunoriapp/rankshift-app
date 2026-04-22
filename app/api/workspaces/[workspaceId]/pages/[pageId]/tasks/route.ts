@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getUserFromAccessToken } from "@/lib/supabase";
 import {
   listTasksByWorkspaceAndPage,
   syncTasksForPage,
@@ -31,15 +32,39 @@ function isSeoTask(value: unknown): value is SeoTask {
   );
 }
 
+async function requireAccessToken(request: NextRequest): Promise<string | null> {
+  const authorization = request.headers.get("authorization");
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authorization.slice("Bearer ".length).trim();
+
+  if (!token) {
+    return null;
+  }
+
+  const user = await getUserFromAccessToken(token);
+  return user ? token : null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { workspaceId: string; pageId: string } },
 ): Promise<NextResponse> {
   try {
+    const accessToken = await requireAccessToken(request);
+
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
+    }
+
     const auditId = request.nextUrl.searchParams.get("auditId") ?? undefined;
     const tasks = await listTasksByWorkspaceAndPage({
       workspaceId: params.workspaceId,
       pageId: params.pageId,
+      accessToken,
       auditId,
     });
 
@@ -55,6 +80,12 @@ export async function POST(
   { params }: { params: { workspaceId: string; pageId: string } },
 ): Promise<NextResponse> {
   try {
+    const accessToken = await requireAccessToken(request);
+
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
+    }
+
     const body = (await request.json()) as TaskSyncBody;
 
     if (
@@ -68,6 +99,7 @@ export async function POST(
     const tasks = await syncTasksForPage({
       workspaceId: params.workspaceId,
       pageId: params.pageId,
+      accessToken,
       auditId: body.auditId,
       tasks: body.tasks,
     });

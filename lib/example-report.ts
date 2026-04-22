@@ -4,6 +4,7 @@ import type {
   AuditFixStateRecord,
   AuditHistoryEntry,
   AuditRecord,
+  CompetitorSnapshotRecord,
 } from "./supabase";
 import type {
   CrawlContentDebug,
@@ -20,6 +21,7 @@ export interface ExampleReportPayload {
   audit: AuditRecord;
   history: AuditHistoryEntry[];
   fixStates: AuditFixStateRecord[];
+  competitorSnapshots: CompetitorSnapshotRecord[];
 }
 
 const EXAMPLE_URL = "https://www.rankshift.ai/example/local-seo-audit";
@@ -281,7 +283,7 @@ const fixes = buildAuditFixes(crawl, score, aiOutput);
 
 export function getExampleReportPayload(): ExampleReportPayload {
   const audit: AuditRecord = {
-    id: 101,
+    id: "101",
     user_id: null,
     project_id: null,
     url: EXAMPLE_URL,
@@ -302,7 +304,7 @@ export function getExampleReportPayload(): ExampleReportPayload {
 
   const history: AuditHistoryEntry[] = [
     {
-      id: 101,
+      id: "101",
       url: EXAMPLE_URL,
       created_at: "2026-04-20T09:00:00.000Z",
       score: 62,
@@ -316,7 +318,7 @@ export function getExampleReportPayload(): ExampleReportPayload {
       internalLinkOpportunityDelta: -3,
     },
     {
-      id: 100,
+      id: "100",
       url: EXAMPLE_URL,
       created_at: "2026-04-12T09:00:00.000Z",
       score: 58,
@@ -333,14 +335,14 @@ export function getExampleReportPayload(): ExampleReportPayload {
 
   const fixStates: AuditFixStateRecord[] = [
     {
-      audit_id: 101,
+      audit_id: "101",
       fix_id: "meta-title",
       severity: "critical",
       completed: true,
       completed_at: "2026-04-20T09:10:00.000Z",
     },
     {
-      audit_id: 101,
+      audit_id: "101",
       fix_id: "single-h1",
       severity: "critical",
       completed: true,
@@ -348,9 +350,39 @@ export function getExampleReportPayload(): ExampleReportPayload {
     },
   ];
 
+  const competitorSnapshots: CompetitorSnapshotRecord[] = [
+    {
+      id: "example-competitor-a",
+      audit_id: "101",
+      competitor_name: "Competitor A",
+      competitor_url: "https://competitor-a.example/local-seo-audit",
+      score: 72,
+      title_length: 58,
+      h1_present: true,
+      word_count: 1400,
+      internal_links: 12,
+      schema_present: true,
+      created_at: "2026-04-20T09:00:00.000Z",
+    },
+    {
+      id: "example-competitor-b",
+      audit_id: "101",
+      competitor_name: "Competitor B",
+      competitor_url: "https://competitor-b.example/local-seo-audit",
+      score: 68,
+      title_length: 61,
+      h1_present: true,
+      word_count: 1200,
+      internal_links: 9,
+      schema_present: true,
+      created_at: "2026-04-20T09:00:00.000Z",
+    },
+  ];
+
   return {
     audit,
     history,
     fixStates,
+    competitorSnapshots,
   };
 }

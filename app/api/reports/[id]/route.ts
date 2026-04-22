@@ -24,7 +24,8 @@ async function requireUser(request: NextRequest) {
     return null;
   }
 
-  return getUserFromAccessToken(token);
+  const user = await getUserFromAccessToken(token);
+  return user ? { user, token } : null;
 }
 
 export async function GET(
@@ -36,21 +37,21 @@ export async function GET(
       return NextResponse.json(getExampleReportPayload());
     }
 
-    const user = await requireUser(request);
+    const auth = await requireUser(request);
 
-    if (!user) {
+    if (!auth) {
       return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
     }
 
-    const audit = await getAuditRecordById(params.id);
+    const audit = await getAuditRecordById(params.id, auth.token);
 
-    if (!audit || (audit.user_id && audit.user_id !== user.id)) {
+    if (!audit || audit.user_id !== auth.user.id) {
       return NextResponse.json({ error: "Report not found." }, { status: 404 });
     }
 
-    const history = await listAuditHistoryByUrl(user.id, audit.url_key);
-    const fixStates = await listFixStatesByAudit(user.id, audit.id);
-    const competitorSnapshots = await listCompetitorSnapshotsByAudit(audit.id);
+    const history = await listAuditHistoryByUrl(auth.user.id, audit.url_key, auth.token);
+    const fixStates = await listFixStatesByAudit(auth.user.id, audit.id, auth.token);
+    const competitorSnapshots = await listCompetitorSnapshotsByAudit(audit.id, auth.token);
 
     return NextResponse.json({
       audit,

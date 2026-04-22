@@ -11,7 +11,7 @@ interface TaskCompletionBody {
   auditId?: unknown;
 }
 
-async function getOptionalUserId(request: NextRequest): Promise<string | null> {
+async function requireAuth(request: NextRequest): Promise<{ userId: string; accessToken: string } | null> {
   const authorization = request.headers.get("authorization");
 
   if (!authorization?.startsWith("Bearer ")) {
@@ -25,7 +25,11 @@ async function getOptionalUserId(request: NextRequest): Promise<string | null> {
   }
 
   const user = await getUserFromAccessToken(token);
-  return user?.id ?? null;
+  if (!user) {
+    return null;
+  }
+
+  return { userId: user.id, accessToken: token };
 }
 
 export async function PATCH(
@@ -43,13 +47,19 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid task completion payload." }, { status: 400 });
     }
 
-    const changedByUserId = await getOptionalUserId(request);
+    const auth = await requireAuth(request);
+
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
+    }
+
     const task = await setTaskCompletionState({
+      accessToken: auth.accessToken,
       taskExternalKey: params.taskId,
       pageId: body.pageId,
       auditId: body.auditId,
       completed: body.completed,
-      changedByUserId,
+      changedByUserId: auth.userId,
     });
 
     return NextResponse.json({ task });

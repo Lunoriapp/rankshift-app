@@ -24,7 +24,8 @@ async function requireUser(request: NextRequest) {
     return null;
   }
 
-  return getUserFromAccessToken(token);
+  const user = await getUserFromAccessToken(token);
+  return user ? { user, token } : null;
 }
 
 function isSeverity(value: unknown): value is FixSeverity {
@@ -36,9 +37,9 @@ export async function POST(
   { params }: { params: { id: string } },
 ): Promise<NextResponse> {
   try {
-    const user = await requireUser(request);
+    const auth = await requireUser(request);
 
-    if (!user) {
+    if (!auth) {
       return NextResponse.json({ error: "Unauthenticated." }, { status: 401 });
     }
 
@@ -53,8 +54,9 @@ export async function POST(
     }
 
     const state = await upsertFixState({
-      userId: user.id,
-      auditId: Number(params.id),
+      userId: auth.user.id,
+      accessToken: auth.token,
+      auditId: params.id,
       fixId: body.fixId,
       severity: body.severity,
       completed: body.completed,

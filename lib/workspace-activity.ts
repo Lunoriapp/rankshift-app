@@ -23,6 +23,7 @@ export interface WorkspacePageProgressCounts {
 interface WorkspacePageScope {
   workspaceId: string;
   pageId: string;
+  accessToken: string;
 }
 
 interface SyncTasksInput extends WorkspacePageScope {
@@ -43,8 +44,8 @@ function normalizeComparableUrl(url: string): string {
   return parsed.toString();
 }
 
-async function assertPageInWorkspace({ workspaceId, pageId }: WorkspacePageScope) {
-  const supabase = getSupabaseServerClient();
+async function assertPageInWorkspace({ workspaceId, pageId, accessToken }: WorkspacePageScope) {
+  const supabase = getSupabaseServerClient(accessToken);
   const { data, error } = await supabase
     .from("pages")
     .select("id, workspace_id")
@@ -161,8 +162,12 @@ function mapTaskRowToSeoTask(row: TaskRow): SeoTask {
   };
 }
 
-async function resolveTargetPageId(workspaceId: string, targetUrl: string): Promise<string | null> {
-  const supabase = getSupabaseServerClient();
+async function resolveTargetPageId(
+  workspaceId: string,
+  targetUrl: string,
+  accessToken: string,
+): Promise<string | null> {
+  const supabase = getSupabaseServerClient(accessToken);
   const normalizedTargetUrl = normalizeComparableUrl(targetUrl);
   const { data, error } = await supabase
     .from("pages")
@@ -182,15 +187,16 @@ async function mapInternalLinkToInsert(input: {
   workspaceId: string;
   auditId: string;
   pageId: string;
+  accessToken: string;
   opportunity: InternalLinkOpportunity;
 }): Promise<InternalLinkOpportunityInsert> {
-  const { workspaceId, auditId, pageId, opportunity } = input;
+  const { workspaceId, auditId, pageId, accessToken, opportunity } = input;
 
   return {
     audit_id: auditId,
     page_id: pageId,
     external_key: opportunity.id,
-    target_page_id: await resolveTargetPageId(workspaceId, opportunity.targetUrl),
+    target_page_id: await resolveTargetPageId(workspaceId, opportunity.targetUrl, accessToken),
     source_url: opportunity.sourceUrl,
     source_title: opportunity.sourceTitle,
     target_url: opportunity.targetUrl,
@@ -224,8 +230,13 @@ function mapInternalLinkRowToOpportunity(row: InternalLinkOpportunityRow): Inter
   };
 }
 
-async function deleteStaleTaskRows(pageId: string, auditId: string, externalKeys: string[]) {
-  const supabase = getSupabaseServerClient();
+async function deleteStaleTaskRows(
+  pageId: string,
+  auditId: string,
+  externalKeys: string[],
+  accessToken: string,
+) {
+  const supabase = getSupabaseServerClient(accessToken);
   const { data, error } = await supabase
     .from("tasks")
     .select("id, external_key")
@@ -255,8 +266,9 @@ async function deleteStaleInternalLinkRows(
   pageId: string,
   auditId: string,
   externalKeys: string[],
+  accessToken: string,
 ) {
-  const supabase = getSupabaseServerClient();
+  const supabase = getSupabaseServerClient(accessToken);
   const { data, error } = await supabase
     .from("internal_link_opportunities")
     .select("id, external_key")
@@ -287,7 +299,7 @@ async function deleteStaleInternalLinkRows(
 
 export async function syncTasksForPage(input: SyncTasksInput): Promise<SeoTask[]> {
   await assertPageInWorkspace(input);
-  const supabase = getSupabaseServerClient();
+  const supabase = getSupabaseServerClient(input.accessToken);
   const rows = input.tasks.map((task) => mapTaskToInsert({ auditId: input.auditId, pageId: input.pageId, task }));
 
   if (rows.length > 0) {
@@ -304,18 +316,20 @@ export async function syncTasksForPage(input: SyncTasksInput): Promise<SeoTask[]
     input.pageId,
     input.auditId,
     input.tasks.map((task) => task.id),
+    input.accessToken,
   );
 
   return listTasksByWorkspaceAndPage({
     workspaceId: input.workspaceId,
     pageId: input.pageId,
+    accessToken: input.accessToken,
     auditId: input.auditId,
   });
 }
 
 export async function listTasksByWorkspaceAndPage(input: WorkspacePageScope & { auditId?: string }) {
   await assertPageInWorkspace(input);
-  const supabase = getSupabaseServerClient();
+  const supabase = getSupabaseServerClient(input.accessToken);
   let query = supabase
     .from("tasks")
     .select(
@@ -338,13 +352,14 @@ export async function listTasksByWorkspaceAndPage(input: WorkspacePageScope & { 
 }
 
 export async function setTaskCompletionState(input: {
+  accessToken: string;
   taskExternalKey: string;
   pageId: string;
   auditId?: string;
   completed: boolean;
   changedByUserId?: string | null;
 }) {
-  const supabase = getSupabaseServerClient();
+  const supabase = getSupabaseServerClient(input.accessToken);
   let existingQuery = supabase
     .from("tasks")
     .select(
@@ -404,13 +419,14 @@ export async function syncInternalLinkOpportunitiesForPage(
   input: SyncInternalLinkOpportunitiesInput,
 ): Promise<InternalLinkOpportunity[]> {
   await assertPageInWorkspace(input);
-  const supabase = getSupabaseServerClient();
+  const supabase = getSupabaseServerClient(input.accessToken);
   const rows = await Promise.all(
     input.opportunities.map((opportunity) =>
       mapInternalLinkToInsert({
         workspaceId: input.workspaceId,
         auditId: input.auditId,
         pageId: input.pageId,
+        accessToken: input.accessToken,
         opportunity,
       }),
     ),
@@ -430,11 +446,13 @@ export async function syncInternalLinkOpportunitiesForPage(
     input.pageId,
     input.auditId,
     input.opportunities.map((opportunity) => opportunity.id),
+    input.accessToken,
   );
 
   return listInternalLinkOpportunitiesByWorkspaceAndPage({
     workspaceId: input.workspaceId,
     pageId: input.pageId,
+    accessToken: input.accessToken,
     auditId: input.auditId,
   });
 }
@@ -443,7 +461,7 @@ export async function listInternalLinkOpportunitiesByWorkspaceAndPage(
   input: WorkspacePageScope & { auditId?: string },
 ) {
   await assertPageInWorkspace(input);
-  const supabase = getSupabaseServerClient();
+  const supabase = getSupabaseServerClient(input.accessToken);
   let query = supabase
     .from("internal_link_opportunities")
     .select(
@@ -468,12 +486,13 @@ export async function listInternalLinkOpportunitiesByWorkspaceAndPage(
 }
 
 export async function setInternalLinkOpportunityCompletionState(input: {
+  accessToken: string;
   externalKey: string;
   pageId: string;
   auditId?: string;
   completed: boolean;
 }) {
-  const supabase = getSupabaseServerClient();
+  const supabase = getSupabaseServerClient(input.accessToken);
   const nextStatus: InternalLinkOpportunityInsert["status"] = input.completed
     ? "completed"
     : "open";
@@ -522,7 +541,7 @@ export async function getWorkspacePageProgressCounts(
   input: WorkspacePageScope,
 ): Promise<WorkspacePageProgressCounts> {
   await assertPageInWorkspace(input);
-  const supabase = getSupabaseServerClient();
+  const supabase = getSupabaseServerClient(input.accessToken);
   const [{ data: tasksData, error: tasksError }, { data: linksData, error: linksError }] =
     await Promise.all([
       supabase.from("tasks").select("status").eq("page_id", input.pageId),
