@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { AuditForm } from "@/components/audit-form";
 import { AuthBootstrap } from "@/components/auth-bootstrap";
@@ -10,22 +11,67 @@ const navItems = [
   { label: "Resources", href: "/resources" },
 ];
 
-const topFeatureStrip = [
+type FeatureItem = {
+  title: string;
+  description: string;
+  icon: ReactNode;
+};
+
+const topFeatureStrip: FeatureItem[] = [
   {
     title: "Find the Right Issues",
     description: "We scan your page in depth to find what's holding your rankings back.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+        <path d="m16 16 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
   },
   {
     title: "Get Clear Fixes",
     description: "Actionable recommendations you can implement right away.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
+        <path
+          d="M9.5 20.5H4a1 1 0 0 1-1-1V14l11.3-11.3a1.7 1.7 0 0 1 2.4 0l4.6 4.6a1.7 1.7 0 0 1 0 2.4L10 21a1 1 0 0 1-.5.3Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        <path d="m13.5 4.5 6 6" stroke="currentColor" strokeWidth="1.6" />
+      </svg>
+    ),
   },
   {
     title: "Add Smart Internal Links",
     description: "Find contextual link opportunities to boost relevance and rankings.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
+        <path
+          d="M9 12a3.5 3.5 0 0 1 0-5l2.5-2.5a3.5 3.5 0 0 1 5 5L15 11"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+        <path
+          d="M15 12a3.5 3.5 0 0 1 0 5l-2.5 2.5a3.5 3.5 0 1 1-5-5L9 13"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
   },
   {
     title: "Know Your Next Move",
     description: "Prioritized next steps so you always know what to focus on.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
+        <path d="M12 3.5V12l5.5 2.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    ),
   },
 ];
 
@@ -197,7 +243,9 @@ export default function HomePage() {
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
             {topFeatureStrip.map((item) => (
               <div key={item.title} className="flex items-start gap-3">
-                <div className="mt-0.5 h-10 w-10 shrink-0 rounded-full bg-indigo-100" />
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
+                  {item.icon}
+                </div>
                 <div>
                   <p className="text-base font-semibold text-slate-900">{item.title}</p>
                   <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
