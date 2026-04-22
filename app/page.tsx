@@ -105,16 +105,16 @@ export default function HomePage() {
 
         <section className="px-6 pb-8 pt-8 sm:px-8 lg:px-10 lg:pb-10">
           <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
-            <div>
+            <div className="max-w-[560px]">
               <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
                 AI-powered SEO audits
               </p>
-              <h1 className="mt-5 max-w-[16ch] text-5xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:text-6xl">
+              <h1 className="mt-5 max-w-[14ch] text-4xl font-semibold leading-[1.08] tracking-tight text-slate-950 sm:text-5xl">
                 Fix pages for{" "}
-                <span className="text-indigo-600">Google and AI answers</span>
+                <span className="text-indigo-600">Google, ChatGPT, and AI search</span>
               </h1>
-              <p className="mt-5 max-w-xl text-2xl leading-8 text-slate-600">
-                Get a clear action plan to improve rankings, add better internal links, and increase visibility in AI overviews and modern search.
+              <p className="mt-5 max-w-lg text-xl leading-7 text-slate-600">
+                Get a clear action plan to improve rankings, add better internal links, and increase visibility across modern search and AI results.
               </p>
               <div id="start-audit">
                 <AuditForm
@@ -123,7 +123,7 @@ export default function HomePage() {
                 />
               </div>
               <p className="mt-2 text-sm text-slate-500">
-                Built to improve visibility in AI overviews and modern search experiences.
+                Works for Google, AI overviews, and LLM-driven search
               </p>
             </div>
 
