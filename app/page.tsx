@@ -346,15 +346,15 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="px-6 pb-8 sm:px-8 lg:px-10">
-          <div className="rounded-2xl bg-[#f1f0ff] px-4 py-6 text-center sm:px-8">
-            <h2 className="mx-auto max-w-3xl text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+        <section className="px-6 pb-6 sm:px-8 lg:px-10">
+          <div className="rounded-2xl bg-[#f1f0ff] px-4 py-5 text-center sm:px-8 sm:py-6">
+            <h2 className="mx-auto max-w-[700px] text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
               Run a scan and get your next SEO + AI actions
             </h2>
-            <p className="mx-auto mt-2 max-w-2xl text-base leading-6 text-slate-600 sm:text-lg sm:leading-7">
+            <p className="mx-auto mt-2 max-w-[700px] text-sm leading-6 text-slate-500 sm:text-base">
               Enter any URL to get fix priorities, internal link opportunities, and AI visibility improvements in seconds.
             </p>
-            <div className="mx-auto max-w-2xl">
+            <div className="mx-auto mt-4 max-w-2xl">
               <AuditForm buttonLabel="Run Audit ->" className="mx-auto" />
             </div>
           </div>
