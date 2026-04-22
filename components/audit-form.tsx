@@ -25,7 +25,6 @@ export function AuditForm({
 }: AuditFormProps) {
   const router = useRouter();
   const [url, setUrl] = useState("");
-  const [competitorUrl, setCompetitorUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,7 +45,7 @@ export function AuditForm({
         },
         body: JSON.stringify({
           url,
-          competitorUrl: competitorUrl.trim().length > 0 ? competitorUrl : null,
+          competitorUrl: null,
         }),
       });
 
@@ -88,39 +87,34 @@ export function AuditForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className={`mt-8 flex w-full max-w-2xl flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-colors duration-300 dark:border-slate-700 dark:bg-slate-900/95 ${className ?? ""}`}
+      className={`mt-8 w-full max-w-2xl ${className ?? ""}`}
     >
-      <label className="text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="url">
-        Your page URL
-      </label>
-      <input
-        id="url"
-        type="url"
-        value={url}
-        onChange={(event) => setUrl(event.target.value)}
-        placeholder="https://example.com"
-        className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-slate-500"
-        required
-      />
-      <label className="text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="competitor-url">
-        Competitor page URL (optional)
-      </label>
-      <input
-        id="competitor-url"
-        type="url"
-        value={competitorUrl}
-        onChange={(event) => setCompetitorUrl(event.target.value)}
-        placeholder="https://competitor.com/page"
-        className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-slate-500"
-      />
-      <p className="text-xs text-slate-500 dark:text-slate-400">Compare against another page</p>
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-sky-500 dark:text-slate-950 dark:hover:bg-sky-400 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
-      >
-        {isSubmitting ? "Running audit..." : buttonLabel}
-      </button>
+      <div className="flex w-full items-center overflow-hidden rounded-2xl border border-indigo-300 bg-white shadow-[0_12px_28px_-20px_rgba(67,56,202,0.55)]">
+        <label htmlFor="url" className="sr-only">
+          URL to audit
+        </label>
+        <input
+          id="url"
+          type="url"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder="Enter your URL (e.g. yourwebsite.com)"
+          className="h-14 w-full bg-white px-5 text-slate-900 outline-none placeholder:text-slate-400"
+          required
+        />
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="h-14 shrink-0 bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-7 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? "Running..." : buttonLabel}
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
+        <span>No signup required</span>
+        <span>Results in under 10 seconds</span>
+        <span>Works on any website</span>
+      </div>
       {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
       <AuditLoadingState isVisible={isSubmitting} />
     </form>
