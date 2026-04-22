@@ -437,10 +437,15 @@ function shouldUseBasicFetchFallback(error: unknown): boolean {
 
 function normalizeUrlForComparison(url: string): string {
   const parsed = new URL(url);
+  parsed.hostname = parsed.hostname.replace(/^www\./i, "").toLowerCase();
   parsed.hash = "";
   parsed.search = "";
   parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
   return parsed.toString();
+}
+
+function normalizeComparableHost(host: string): string {
+  return host.replace(/^www\./i, "").toLowerCase();
 }
 
 function shouldCrawlUrl(url: string, host: string): boolean {
@@ -456,7 +461,7 @@ function shouldCrawlUrl(url: string, host: string): boolean {
     return false;
   }
 
-  if (parsed.hostname !== host) {
+  if (normalizeComparableHost(parsed.hostname) !== normalizeComparableHost(host)) {
     return false;
   }
 

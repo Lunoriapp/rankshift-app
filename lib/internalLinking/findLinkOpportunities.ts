@@ -28,10 +28,11 @@ function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string
 
 function normalizeComparableUrl(url: string): string {
   const parsed = new URL(url);
+  const hostname = parsed.hostname.replace(/^www\./i, "").toLowerCase();
   parsed.hash = "";
   parsed.search = "";
   parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
-  return parsed.toString();
+  return `${hostname}${parsed.pathname.toLowerCase()}`;
 }
 
 function shouldSkipPair(source: SitePageTopicProfile, target: SitePageTopicProfile): boolean {
