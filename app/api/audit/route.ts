@@ -291,7 +291,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         userId: resolvedUser.id,
         accessToken: resolvedUser.token,
         url: normalizedUrl,
-        crawl,
+        crawl: {
+          ...crawl,
+          internalLinking: crawl.internalLinking
+            ? {
+                ...crawl.internalLinking,
+                // Persist only the actionable output; debug/pages can become very large and time out inserts.
+                pages: [],
+                debug: [],
+              }
+            : undefined,
+        },
         score,
         aiOutput,
         fixes,
