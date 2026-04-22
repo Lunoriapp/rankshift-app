@@ -190,7 +190,7 @@ export function suggestAnchorText(
   target: SitePageTopicProfile,
   options: SuggestAnchorTextOptions = {},
 ): AnchorSuggestion | null {
-  const titleTopicTokens = new Set(tokenizeStemmed(target.title));
+  const titleTopicTokens = new Set(tokenizeStemmed(target.primaryTopic));
   const h1TopicTokens = new Set(tokenizeStemmed(target.h1));
   const primaryTopicTokens = new Set(tokenizeStemmed(target.primaryTopic));
   const candidates: AnchorSuggestion[] = [];

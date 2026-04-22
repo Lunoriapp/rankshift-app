@@ -88,8 +88,12 @@ function hasStrongSourceTargetTopicFit(
   source: SitePageTopicProfile,
   target: SitePageTopicProfile,
 ): boolean {
-  const sourceTokens = new Set(tokenize(`${source.title} ${source.h1} ${source.primaryTopic}`));
-  const targetTokens = new Set(tokenize(`${target.title} ${target.h1} ${target.primaryTopic}`));
+  const sourceTitleCore =
+    source.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ?? "";
+  const targetTitleCore =
+    target.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ?? "";
+  const sourceTokens = new Set(tokenize(`${sourceTitleCore} ${source.h1} ${source.primaryTopic}`));
+  const targetTokens = new Set(tokenize(`${targetTitleCore} ${target.h1} ${target.primaryTopic}`));
 
   if (sourceTokens.size === 0 || targetTokens.size === 0) {
     return true;
@@ -108,7 +112,7 @@ function hasStrongSourceTargetTopicFit(
   const sourceTitleSignals = source.topicPhrases
     .filter((phrase) => phrase.source === "title" || phrase.source === "h1")
     .slice(0, 6);
-  const targetSignalText = `${target.title} ${target.h1} ${target.primaryTopic}`;
+  const targetSignalText = `${targetTitleCore} ${target.h1} ${target.primaryTopic}`;
 
   return sourceTitleSignals.some(
     (phrase) => phraseWordOverlap(targetSignalText, phrase.phrase) >= 0.8,

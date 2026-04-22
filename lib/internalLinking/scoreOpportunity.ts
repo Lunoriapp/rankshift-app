@@ -74,6 +74,16 @@ function topOfPageWeight(position: number): number {
   return 0.68;
 }
 
+function coreTopicTerms(profile: SitePageTopicProfile): string[] {
+  const strongestTitlePhrase = profile.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ?? "";
+
+  return [
+    ...tokenize(profile.primaryTopic),
+    ...tokenize(profile.h1),
+    ...tokenize(strongestTitlePhrase),
+  ];
+}
+
 export function scoreOpportunity({
   source,
   target,
@@ -85,11 +95,11 @@ export function scoreOpportunity({
     [...target.keywords, ...target.topicPhrases.flatMap((phrase) => tokenize(phrase.phrase))],
   );
   const sourceTopicAlignment = overlapScore(
-    [...tokenize(source.title), ...tokenize(source.h1), ...tokenize(source.primaryTopic)],
+    coreTopicTerms(source),
     tokenize(suggestion.anchor),
   );
   const targetTopicAlignment = overlapScore(
-    [...tokenize(target.title), ...tokenize(target.h1), ...tokenize(target.primaryTopic)],
+    coreTopicTerms(target),
     tokenize(suggestion.anchor),
   );
   const phraseMatchScore =
