@@ -634,13 +634,18 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     sourceMatchedOpportunities.length > 0
       ? sourceMatchedOpportunities
       : allInternalLinkOpportunities;
+  const keywordAnchoredOpportunities = internalLinkOpportunities.filter((opportunity) =>
+    isKeywordAnchor(opportunity.suggestedAnchor),
+  );
+  const opportunitiesForDisplay =
+    keywordAnchoredOpportunities.length > 0
+      ? keywordAnchoredOpportunities
+      : internalLinkOpportunities;
   const dedupedInternalLinkOpportunities = [...new Map(
-    internalLinkOpportunities
-      .filter((opportunity) => isKeywordAnchor(opportunity.suggestedAnchor))
-      .map((opportunity) => [
-        `${normalizeOpportunityUrl(opportunity.sourceUrl)}|${normalizeOpportunityUrl(opportunity.targetUrl)}|${opportunity.suggestedAnchor.toLowerCase()}`,
-        opportunity,
-      ]),
+    opportunitiesForDisplay.map((opportunity) => [
+      `${normalizeOpportunityUrl(opportunity.sourceUrl)}|${normalizeOpportunityUrl(opportunity.targetUrl)}|${opportunity.suggestedAnchor.toLowerCase()}`,
+      opportunity,
+    ]),
   ).values()];
   const focusedInternalLinkOpportunities = dedupedInternalLinkOpportunities.slice(0, 5);
   const totalFixCount = payload.audit.fixes.length + internalLinkOpportunities.length;
