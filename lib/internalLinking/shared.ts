@@ -71,7 +71,12 @@ export function normalizeWhitespace(value: string): string {
 }
 
 export function normalizePhrase(value: string): string {
-  return normalizeWhitespace(value.toLowerCase().replace(/[^a-z0-9\s/-]/g, " "));
+  return normalizeWhitespace(
+    value
+      .toLowerCase()
+      .replace(/[/-]+/g, " ")
+      .replace(/[^a-z0-9\s]/g, " "),
+  );
 }
 
 export function stemToken(token: string): string {

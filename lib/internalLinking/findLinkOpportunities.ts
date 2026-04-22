@@ -209,15 +209,18 @@ function buildRelatedCandidates(
   source: SitePageTopicProfile,
   pages: SitePageTopicProfile[],
 ): InternalLinkOpportunity[] {
-  return pages
+  const ranked = pages
     .filter((target) => !shouldSkipPair(source, target))
     .map((target) => ({
       target,
       score: topicOverlapScore(source, target),
     }))
-    .filter((entry) => entry.score >= 24)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
+    .sort((a, b) => b.score - a.score);
+
+  const aboveThreshold = ranked.filter((entry) => entry.score >= 12);
+  const selected = (aboveThreshold.length > 0 ? aboveThreshold : ranked).slice(0, 3);
+
+  return selected
     .map(({ target, score }) => ({
       id: buildOpportunityId(source.url, target.url, `related-${score}`),
       sourceUrl: source.url,
