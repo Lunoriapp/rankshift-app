@@ -332,8 +332,10 @@ export function findLinkOpportunities(
         });
         const sourceFit = scored.signals.sourceTopicAlignment;
         const targetFit = scored.signals.targetTopicAlignment;
+        const combinedFit = sourceFit * 0.45 + targetFit * 0.55;
+        const minScoreByMatchType = suggestion.matchType === "exact" ? 56 : 60;
 
-        if (sourceFit < 0.34 || targetFit < 0.34) {
+        if (targetFit < 0.2 || combinedFit < 0.26) {
           diagnostics.droppedByFilter.lowScore += 1;
           candidateAnchorPhrases.push({
             anchor: suggestion.anchor,
@@ -341,12 +343,12 @@ export function findLinkOpportunities(
             sectionLabel: context.sectionLabel,
             score: scored.score,
             confidence: scored.confidence,
-            reason: `Rejected for weak topical fit (source ${Math.round(sourceFit * 100)}%, target ${Math.round(targetFit * 100)}%).`,
+            reason: `Rejected for weak topical fit (source ${Math.round(sourceFit * 100)}%, target ${Math.round(targetFit * 100)}%, combined ${Math.round(combinedFit * 100)}%).`,
           });
           continue;
         }
 
-        if (scored.score < 62) {
+        if (scored.score < minScoreByMatchType) {
           diagnostics.droppedByFilter.lowScore += 1;
           candidateAnchorPhrases.push({
             anchor: suggestion.anchor,
@@ -354,7 +356,7 @@ export function findLinkOpportunities(
             sectionLabel: context.sectionLabel,
             score: scored.score,
             confidence: scored.confidence,
-            reason: `Rejected because score ${scored.score} is below minimum 62.`,
+            reason: `Rejected because score ${scored.score} is below minimum ${minScoreByMatchType}.`,
           });
           continue;
         }
