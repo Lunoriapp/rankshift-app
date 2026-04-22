@@ -32,19 +32,19 @@ const topFeatureStrip = [
 const outcomes = [
   {
     value: "Clear",
-    valueClassName: "text-5xl sm:text-6xl",
+    valueClassName: "text-3xl sm:text-4xl",
     title: "Priority fixes first",
     description: "Resolve the issues most likely to hold back visibility",
   },
   {
     value: "Natural",
-    valueClassName: "text-5xl sm:text-6xl",
+    valueClassName: "text-3xl sm:text-4xl",
     title: "Internal links from real content",
     description: "Use existing phrases on the page as clean anchor text",
   },
   {
     value: "Stronger",
-    valueClassName: "text-4xl sm:text-5xl",
+    valueClassName: "text-3xl sm:text-4xl",
     title: "Visibility across search surfaces",
     description: "Improve coverage in classic results, AI overviews, and assistants",
   },
