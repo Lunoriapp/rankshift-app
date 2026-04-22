@@ -209,8 +209,24 @@ function buildRelatedCandidates(
   source: SitePageTopicProfile,
   pages: SitePageTopicProfile[],
 ): InternalLinkOpportunity[] {
-  const ranked = pages
-    .filter((target) => !shouldSkipPair(source, target))
+  const isBroadlyEligible = (target: SitePageTopicProfile): boolean => {
+    if (source.url === target.url) {
+      return false;
+    }
+
+    if (!target.indexable) {
+      return false;
+    }
+
+    const blockedTargetPathFragments = ["/404", "/not-found", "/error", "/page-not-found"];
+    const targetPath = new URL(target.url).pathname.toLowerCase();
+    return !blockedTargetPathFragments.some((fragment) => targetPath.includes(fragment));
+  };
+
+  const strictCandidates = pages.filter((target) => !shouldSkipPair(source, target));
+  const candidatePool = strictCandidates.length > 0 ? strictCandidates : pages.filter(isBroadlyEligible);
+
+  const ranked = candidatePool
     .map((target) => ({
       target,
       score: topicOverlapScore(source, target),
