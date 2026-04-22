@@ -71,12 +71,7 @@ export function normalizeWhitespace(value: string): string {
 }
 
 export function normalizePhrase(value: string): string {
-  return normalizeWhitespace(
-    value
-      .toLowerCase()
-      .replace(/[/-]+/g, " ")
-      .replace(/[^a-z0-9\s]/g, " "),
-  );
+  return normalizeWhitespace(value.toLowerCase().replace(/[^a-z0-9\s/-]/g, " "));
 }
 
 export function stemToken(token: string): string {
@@ -110,9 +105,15 @@ export function escapeRegExp(value: string): string {
 }
 
 export function tokenize(value: string): string[] {
-  return normalizePhrase(value)
-    .split(/\s+/)
+  const normalized = normalizePhrase(value);
+  const splitTokens = normalized
+    .split(/[\s/-]+/)
     .filter((token) => token.length >= 3 && !STOPWORDS.has(token));
+  const collapsedCompoundTokens = (normalized.match(/[a-z0-9]+(?:[-/][a-z0-9]+)+/g) ?? [])
+    .map((token) => token.replace(/[-/]/g, ""))
+    .filter((token) => token.length >= 3 && !STOPWORDS.has(token));
+
+  return [...new Set([...splitTokens, ...collapsedCompoundTokens])];
 }
 
 export function tokenizeStemmed(value: string): string[] {
