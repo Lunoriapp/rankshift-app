@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
@@ -23,6 +22,7 @@ function isActivePath(pathname: string, href: string): boolean {
 export function MarketingSiteHeader() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
   const mobileMenuId = useId();
 
   useEffect(() => {
@@ -37,14 +37,16 @@ export function MarketingSiteHeader() {
           aria-label="Go to Rankshift homepage"
           className="inline-flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
         >
-          <Image
-            src="/rankshift-logo.png"
-            alt="Rankshift"
-            width={180}
-            height={40}
-            priority
-            className="h-7 w-auto sm:h-8"
-          />
+          {logoLoadFailed ? (
+            <span className="text-3xl font-semibold tracking-tight text-slate-950">Rankshift</span>
+          ) : (
+            <img
+              src="/rankshift-logo.png"
+              alt="Rankshift"
+              className="h-7 w-auto sm:h-8"
+              onError={() => setLogoLoadFailed(true)}
+            />
+          )}
         </Link>
 
         <nav aria-label="Primary navigation" className="hidden items-center gap-9 text-sm font-medium text-slate-600 lg:flex">
