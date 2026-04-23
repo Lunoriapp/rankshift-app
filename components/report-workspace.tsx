@@ -108,6 +108,27 @@ function gradientRing(readinessScore: number): string {
   return `conic-gradient(rgb(79 70 229) ${clamped}%, rgb(226 232 240) 0)`;
 }
 
+function severityBadge(severity: AuditFix["severity"]): { label: string; className: string } {
+  if (severity === "critical") {
+    return {
+      label: "Critical",
+      className: "border-rose-200 bg-rose-50 text-rose-700",
+    };
+  }
+
+  if (severity === "high") {
+    return {
+      label: "High",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  return {
+    label: "Medium",
+    className: "border-slate-200 bg-slate-100 text-slate-700",
+  };
+}
+
 export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +173,8 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
         normalizeComparablePageKey(opportunity.sourceUrl) === auditedPageKey ||
         normalizeOpportunityUrl(opportunity.sourceUrl) === normalizeOpportunityUrl(payload.audit.url),
     );
-    const linkOps = (sourceMatched.length > 0 ? sourceMatched : allLinkOps).slice(0, 3);
+    const scopedLinkOps = sourceMatched.length > 0 ? sourceMatched : allLinkOps;
+    const linkOps = scopedLinkOps.slice(0, 3);
     const primaryFix = getPrimaryFix(payload.audit.fixes);
     const aiPillar = payload.audit.score.pillars.aiVisibility;
     const aiReadiness = aiPillar
@@ -161,16 +183,29 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     const aiChecks = aiPillar?.checks ?? [];
     const aiIssues = aiChecks.filter((check) => !check.passed);
     const aiFixes = payload.audit.fixes.filter((fix) => fix.pillar === "aiVisibility");
+    const severityRank = {
+      critical: 0,
+      high: 1,
+      medium: 2,
+    } as const;
+    const aiPriorityFixes = [...aiFixes]
+      .sort((a, b) => severityRank[a.severity] - severityRank[b.severity])
+      .slice(0, 3);
+    const highConfidenceLinkOps = scopedLinkOps.filter((opportunity) => opportunity.confidence === "High").length;
 
     return {
       score,
       issueCount: payload.audit.fixes.length,
       primaryFix,
       linkOps,
+      totalLinkOps: scopedLinkOps.length,
+      highConfidenceLinkOps,
       conciseFixes: payload.audit.fixes.slice(0, 8),
       aiReadiness,
+      aiSignalPassCount: aiChecks.length - aiIssues.length,
+      aiSignalTotalCount: aiChecks.length,
       aiIssues,
-      aiFixes,
+      aiPriorityFixes,
     };
   }, [payload]);
 
@@ -312,66 +347,122 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
-                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
-                    <path d="M12 3.5v17M3.5 12h17M5.7 5.7l12.6 12.6M18.3 5.7 5.7 18.3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                </span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">AI &amp; LLM visibility</p>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">How ready this page is for AI summaries</h2>
-                </div>
-              </div>
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
-                  <path d="m12 4 1.8 4.2 4.2 1.8-4.2 1.8L12 16l-1.8-4.2L6 10l4.2-1.8L12 4Z" stroke="currentColor" strokeWidth="1.8" />
-                </svg>
-              </span>
-            </div>
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="grid h-28 w-28 place-items-center rounded-full p-1" style={{ background: gradientRing(reportSummary.aiReadiness) }}>
-                  <div className="grid h-full w-full place-items-center rounded-full bg-white">
-                    <p className="text-center text-sm font-medium text-slate-600">
-                      <span className="block text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.aiReadiness}</span>
-                      / 100
-                    </p>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)]">
+            <div className="bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_58%)] p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
+                      <path d="M12 3.5v17M3.5 12h17M5.7 5.7l12.6 12.6M18.3 5.7 5.7 18.3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">AI &amp; LLM visibility</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">AI visibility sprint for this page</h2>
                   </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Readiness score</p>
-                  <p className={`mt-1 text-sm font-semibold ${aiMeta.className}`}>{aiMeta.label}</p>
+                <Link
+                  href="#issues-fixes"
+                  className="inline-flex items-center rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                >
+                  Open all fixes &rarr;
+                </Link>
+              </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="grid h-28 w-28 place-items-center rounded-full p-1" style={{ background: gradientRing(reportSummary.aiReadiness) }}>
+                      <div className="grid h-full w-full place-items-center rounded-full bg-white">
+                        <p className="text-center text-sm font-medium text-slate-600">
+                          <span className="block text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.aiReadiness}</span>
+                          / 100
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Readiness score</p>
+                      <p className={`mt-1 text-sm font-semibold ${aiMeta.className}`}>{aiMeta.label}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-lg border border-slate-200 bg-white px-2 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Signals passed</p>
+                      <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
+                        {reportSummary.aiSignalPassCount}/{reportSummary.aiSignalTotalCount}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white px-2 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Blockers</p>
+                      <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{reportSummary.aiIssues.length}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white px-2 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Link boosts</p>
+                      <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
+                        {reportSummary.highConfidenceLinkOps}/{reportSummary.totalLinkOps}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">This week</p>
+                  <h3 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Priority AI implementation sprint</h3>
+                  {reportSummary.aiPriorityFixes.length > 0 ? (
+                    <ul className="mt-4 space-y-3">
+                      {reportSummary.aiPriorityFixes.map((fix, index) => {
+                        const severityMeta = severityBadge(fix.severity);
+
+                        return (
+                          <li key={fix.id} className="rounded-lg border border-indigo-100 bg-white px-3 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-900">
+                                {index + 1}. {fix.title}
+                              </p>
+                              <span
+                                className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${severityMeta.className}`}
+                              >
+                                {severityMeta.label}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-slate-700">{fix.action}</p>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
+                      <p className="text-sm font-semibold text-emerald-800">No direct AI visibility blockers detected.</p>
+                      <p className="mt-1 text-sm text-emerald-700">
+                        Strengthen topical depth and internal links, then re-run to verify your citation readiness.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-semibold text-slate-900">Issues detected</p>
-                  {reportSummary.aiIssues.length > 0 ? (
-                    <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                      {reportSummary.aiIssues.map((issue) => (
-                        <li key={issue.label}>{issue.label}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-3 text-sm text-slate-600">No AI visibility blockers detected in this audit.</p>
-                  )}
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-semibold text-slate-900">Recommended fixes</p>
-                  {reportSummary.aiFixes.length > 0 ? (
-                    <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                      {reportSummary.aiFixes.slice(0, 6).map((fix) => (
-                        <li key={fix.id}>{fix.action}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-3 text-sm text-slate-600">Continue improving topical depth and internal links.</p>
-                  )}
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Turn this into a weekly AI visibility workflow</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Track week-over-week movement, compare audits, and lock in internal-linking wins before competitors do.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Link
+                      href="/pricing"
+                      className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105"
+                    >
+                      Unlock weekly tracking
+                    </Link>
+                    <Link
+                      href={`/report/${reportId}/details`}
+                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+                    >
+                      View all opportunities
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -538,4 +629,3 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     </main>
   );
 }
-

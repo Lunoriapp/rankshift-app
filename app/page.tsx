@@ -133,18 +133,18 @@ export default function HomePage() {
       <div className="mx-auto max-w-[1180px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)]">
         <MarketingSiteHeader />
 
-        <section id="scan-start" className="px-6 pb-8 pt-8 sm:px-8 lg:px-10 lg:pb-10">
-          <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
+        <section id="scan-start" className="px-4 py-8 sm:px-8 lg:px-10 lg:pb-10 lg:pt-8">
+          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
             <div className="max-w-[560px]">
               <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
                 AI-powered SEO audit
               </p>
-              <h1 className="mt-5 max-w-[16ch] text-4xl font-semibold leading-[1.08] tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-4 max-w-[17ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:max-w-[18ch] sm:text-4xl lg:text-6xl">
                 See why your page isn't showing in{" "}
                 <span className="text-blue-600">Google</span> and{" "}
                 <span className="text-indigo-600">AI results</span>
               </h1>
-              <p className="mt-5 max-w-xl text-xl leading-8 text-slate-600">
+              <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
                 Run a focused scan to find missed visibility, priority fixes, and internal links you can ship straight away.
               </p>
               <AuditForm
@@ -153,7 +153,7 @@ export default function HomePage() {
                 helperText="No need to include https://"
                 showHighlights={false}
               />
-              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500 sm:mt-4">
                 {[
                   "No sign-up required",
                   "Results in under 60 seconds",
@@ -169,12 +169,12 @@ export default function HomePage() {
                   </span>
                 ))}
               </div>
-              <p className="mt-4 text-base text-slate-600">
+              <p className="mt-3 text-sm text-slate-600 sm:mt-4 sm:text-base">
                 Built for <span className="font-semibold text-indigo-600">modern search and AI</span>
               </p>
             </div>
 
-            <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)]">
+            <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-4">
               <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-2 pb-3">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
@@ -186,7 +186,7 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <div className="space-y-4 p-2 pt-4">
+              <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
                   <p className="text-xs font-medium text-indigo-700">
                     Preview only · final results generated after your live scan
@@ -201,11 +201,11 @@ export default function HomePage() {
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                       Sample page format
                     </p>
-                    <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">yourwebsite.com/page</p>
+                    <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950 sm:text-3xl">yourwebsite.com/page</p>
                     <p className="mt-1 text-xs text-slate-500">Illustrative layout preview</p>
                   </div>
-                  <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-2xl border-2 border-emerald-400 bg-emerald-50 text-slate-900">
-                    <p className="text-3xl font-semibold leading-none">78</p>
+                  <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl border-2 border-emerald-400 bg-emerald-50 text-slate-900 sm:h-20 sm:w-20 sm:rounded-2xl">
+                    <p className="text-2xl font-semibold leading-none sm:text-3xl">78</p>
                     <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700">Score</p>
                   </div>
                 </div>
@@ -223,7 +223,7 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="hidden gap-3 sm:grid sm:grid-cols-2">
                   <div className="rounded-xl border border-slate-200 p-3">
                     <p className="text-sm font-semibold text-slate-800">Top issues</p>
                     <div className="mt-3 space-y-2 text-sm text-slate-600">

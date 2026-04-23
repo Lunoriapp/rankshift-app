@@ -112,42 +112,46 @@ export function AuditForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className={`${compact ? "mt-4" : "mt-8"} w-full max-w-2xl ${className ?? ""}`}
+      className={`${compact ? "mt-4" : "mt-6 sm:mt-8"} w-full max-w-2xl ${className ?? ""}`}
       noValidate
     >
       <div
-        className={`flex w-full items-center overflow-hidden rounded-2xl border bg-white shadow-[0_12px_28px_-20px_rgba(67,56,202,0.55)] ${
-          error ? "border-red-300" : "border-indigo-300"
-        }`}
+        className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-0"
       >
-        <label htmlFor="url" className="sr-only">
-          Website to audit
-        </label>
-        <input
-          id={inputId}
-          type="text"
-          value={url}
-          onChange={(event) => {
-            setUrl(event.target.value);
-            if (error) {
-              setError(null);
-            }
-          }}
-          onBlur={handleBlur}
-          placeholder="Enter your website (e.g. yourwebsite.com)"
-          inputMode="url"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
-          className={`${compact ? "h-12 text-sm" : "h-14"} w-full bg-white px-5 text-slate-900 outline-none placeholder:text-slate-400`}
-          required
-        />
+        <div
+          className={`w-full overflow-hidden rounded-2xl border bg-white shadow-[0_12px_28px_-20px_rgba(67,56,202,0.55)] sm:rounded-r-none sm:border-r-0 ${
+            error ? "border-red-300" : "border-indigo-300"
+          }`}
+        >
+          <label htmlFor="url" className="sr-only">
+            Website to audit
+          </label>
+          <input
+            id={inputId}
+            type="text"
+            value={url}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              if (error) {
+                setError(null);
+              }
+            }}
+            onBlur={handleBlur}
+            placeholder="Enter your website (e.g. yourwebsite.com)"
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
+            className={`${compact ? "h-12 text-sm" : "h-12 text-sm sm:h-14"} w-full bg-white px-4 sm:px-5 text-slate-900 outline-none placeholder:text-slate-400`}
+            required
+          />
+        </div>
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`${compact ? "h-12 px-6" : "h-14 px-7"} shrink-0 bg-[linear-gradient(135deg,#4f46e5,#4338ca)] text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60`}
+          className={`${compact ? "h-12 px-6" : "h-12 px-6 sm:h-14 sm:px-7"} mt-2 w-full shrink-0 rounded-2xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] text-sm font-semibold text-white shadow-[0_12px_28px_-18px_rgba(67,56,202,0.8)] transition hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-0 sm:w-auto sm:rounded-l-none`}
         >
           {isSubmitting ? "Running..." : buttonLabel}
         </button>
