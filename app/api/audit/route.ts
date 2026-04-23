@@ -8,6 +8,7 @@ import { findLinkOpportunities } from "@/lib/internalLinking/findLinkOpportuniti
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { scoreAudit } from "@/lib/scorer";
 import { createAuditRecord, getUserFromAccessToken } from "@/lib/supabase";
+import { normalizeUrl } from "@/lib/utils/url";
 
 export const runtime = "nodejs";
 const AUDIT_ROUTE_VERSION = "AUDIT_API_V4";
@@ -46,20 +47,6 @@ function getErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
-}
-
-function normalizeUrl(value: string): string {
-  const candidate = value.trim();
-  const withProtocol = /^https?:\/\//i.test(candidate)
-    ? candidate
-    : `https://${candidate}`;
-  const parsed = new URL(withProtocol);
-
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error("URL protocol must be HTTP or HTTPS.");
-  }
-
-  return parsed.toString();
 }
 
 async function resolveUser(request: NextRequest): Promise<{ id: string; token: string } | null> {

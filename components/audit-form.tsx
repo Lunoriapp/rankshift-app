@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 
 import { AuditLoadingState } from "@/components/audit-loading-state";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
+import { normalizeUrl } from "@/lib/utils/url";
 
 interface AuditFormProps {
   buttonLabel?: string;
@@ -30,14 +31,30 @@ export function AuditForm({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleBlur = () => {
+    if (!url.trim()) {
+      return;
+    }
+
+    try {
+      const normalized = normalizeUrl(url);
+      setUrl(normalized);
+      setError(null);
+    } catch {
+      // Keep the current value so users can quickly fix input mistakes.
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
-    setIsSubmitting(true);
     let hasNavigated = false;
-    const startedAt = Date.now();
 
     try {
+      const normalizedUrl = normalizeUrl(url);
+      setUrl(normalizedUrl);
+      setIsSubmitting(true);
+      const startedAt = Date.now();
       const accessToken = await getSupabaseAccessToken();
       const response = await fetch("/api/audit", {
         method: "POST",
@@ -46,7 +63,7 @@ export function AuditForm({
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({
-          url,
+          url: normalizedUrl,
           competitorUrl: null,
         }),
       });
@@ -90,17 +107,34 @@ export function AuditForm({
     <form
       onSubmit={handleSubmit}
       className={`${compact ? "mt-4" : "mt-8"} w-full max-w-2xl ${className ?? ""}`}
+      noValidate
     >
-      <div className="flex w-full items-center overflow-hidden rounded-2xl border border-indigo-300 bg-white shadow-[0_12px_28px_-20px_rgba(67,56,202,0.55)]">
+      <div
+        className={`flex w-full items-center overflow-hidden rounded-2xl border bg-white shadow-[0_12px_28px_-20px_rgba(67,56,202,0.55)] ${
+          error ? "border-red-300" : "border-indigo-300"
+        }`}
+      >
         <label htmlFor="url" className="sr-only">
-          URL to audit
+          Website to audit
         </label>
         <input
           id="url"
-          type="url"
+          type="text"
           value={url}
-          onChange={(event) => setUrl(event.target.value)}
-          placeholder="Enter your URL (e.g. yourwebsite.com)"
+          onChange={(event) => {
+            setUrl(event.target.value);
+            if (error) {
+              setError(null);
+            }
+          }}
+          onBlur={handleBlur}
+          placeholder="Enter your website (e.g. yourwebsite.com)"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "audit-url-error" : undefined}
           className={`${compact ? "h-12 text-sm" : "h-14"} w-full bg-white px-5 text-slate-900 outline-none placeholder:text-slate-400`}
           required
         />
@@ -120,7 +154,11 @@ export function AuditForm({
         <span>Works on any website</span>
         <span>Built for modern search and AI</span>
       </div>
-      {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+      {error ? (
+        <p id="audit-url-error" className="mt-2 text-sm text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      ) : null}
       <AuditLoadingState isVisible={isSubmitting} />
     </form>
   );
