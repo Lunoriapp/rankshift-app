@@ -47,6 +47,23 @@ function normalizeComparablePageKey(value: string): string {
   }
 }
 
+function getDisplayUrlParts(value: string): {
+  host: string;
+  remainder: string | null;
+} {
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const remainder =
+      parsed.pathname === "/" && !parsed.search && !parsed.hash
+        ? null
+        : `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    return { host, remainder };
+  } catch {
+    return { host: value, remainder: null };
+  }
+}
+
 function getPrimaryFix(fixes: AuditFix[]): AuditFix | null {
   if (fixes.length === 0) {
     return null;
@@ -232,6 +249,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const scoreMeta = scoreStatus(reportSummary.score);
   const issuesMeta = issuesStatus(reportSummary.issueCount);
   const aiMeta = scoreStatus(reportSummary.aiReadiness);
+  const displayUrl = getDisplayUrlParts(payload.audit.url);
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
@@ -285,35 +303,51 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           </div>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-6">
-            <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">Audit results</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-                  Your page action plan
-                </h1>
-                <p className="mt-2 text-sm text-slate-600">
-                  A high-level summary of your page&apos;s health and opportunities.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">URL analysed</p>
-                  <p className="mt-2 break-all text-sm font-medium text-slate-800">{payload.audit.url}</p>
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="max-w-2xl">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">Audit results</p>
+                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                    Your page action plan
+                  </h1>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    A high-level summary of your page&apos;s health and highest-impact opportunities.
+                  </p>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Score</p>
+                <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  Live audit snapshot
+                </span>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-4">
+                <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 lg:p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">URL analysed</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900 sm:text-base">{displayUrl.host}</p>
+                  {displayUrl.remainder ? (
+                    <p
+                      title={payload.audit.url}
+                      className="mt-1 text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:text-sm"
+                    >
+                      {displayUrl.remainder}
+                    </p>
+                  ) : null}
+                </article>
+
+                <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Score</p>
                   <div className="mt-2 flex items-end gap-2">
                     <p className="text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.score}</p>
                     <p className={`pb-1 text-sm font-semibold ${scoreMeta.className}`}>{scoreMeta.label}</p>
                   </div>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Issues found</p>
+                </article>
+
+                <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Issues found</p>
                   <div className="mt-2 flex items-end gap-2">
                     <p className="text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.issueCount}</p>
                     <p className={`pb-1 text-sm font-semibold ${issuesMeta.className}`}>{issuesMeta.label}</p>
                   </div>
-                </div>
+                </article>
               </div>
             </div>
           </section>
@@ -348,7 +382,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           </section>
 
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)]">
-            <div className="bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_58%)] p-5 sm:p-6">
+            <div className="bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.12),transparent_55%)] p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
@@ -369,23 +403,27 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                 </Link>
               </div>
 
-              <div className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-center gap-4">
-                    <div className="grid h-28 w-28 place-items-center rounded-full p-1" style={{ background: gradientRing(reportSummary.aiReadiness) }}>
-                      <div className="grid h-full w-full place-items-center rounded-full bg-white">
-                        <p className="text-center text-sm font-medium text-slate-600">
-                          <span className="block text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.aiReadiness}</span>
-                          / 100
-                        </p>
+              <div className="mt-4 grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-4">
+                      <div className="grid h-24 w-24 place-items-center rounded-full p-1" style={{ background: gradientRing(reportSummary.aiReadiness) }}>
+                        <div className="grid h-full w-full place-items-center rounded-full bg-white">
+                          <p className="text-center text-xs font-medium text-slate-600">
+                            <span className="block text-3xl font-semibold tracking-tight text-slate-950">{reportSummary.aiReadiness}</span>
+                            / 100
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Readiness score</p>
+                        <p className={`mt-1 text-sm font-semibold ${aiMeta.className}`}>{aiMeta.label}</p>
+                        <p className="mt-2 text-xs text-slate-500">How likely this page is to be cited in AI-generated answers.</p>
                       </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">Readiness score</p>
-                      <p className={`mt-1 text-sm font-semibold ${aiMeta.className}`}>{aiMeta.label}</p>
-                    </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-lg border border-slate-200 bg-white px-2 py-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Signals passed</p>
                       <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
@@ -405,11 +443,19 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">This week</p>
-                  <h3 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Priority AI implementation sprint</h3>
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 sm:p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">This week</p>
+                      <h3 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">Priority AI implementation sprint</h3>
+                    </div>
+                    <span className="inline-flex rounded-full border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-700">
+                      Top actions
+                    </span>
+                  </div>
+
                   {reportSummary.aiPriorityFixes.length > 0 ? (
-                    <ul className="mt-4 space-y-3">
+                    <ul className="mt-4 space-y-2.5">
                       {reportSummary.aiPriorityFixes.map((fix, index) => {
                         const severityMeta = severityBadge(fix.severity);
 
@@ -425,7 +471,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                                 {severityMeta.label}
                               </span>
                             </div>
-                            <p className="mt-2 text-sm leading-6 text-slate-700">{fix.action}</p>
+                            <p className="mt-1.5 text-sm leading-6 text-slate-700">{fix.action}</p>
                           </li>
                         );
                       })}
@@ -442,7 +488,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
               </div>
 
               <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Turn this into a weekly AI visibility workflow</p>
                     <p className="mt-1 text-sm text-slate-600">
@@ -493,30 +539,32 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
             {reportSummary.linkOps.length > 0 ? (
               <div className="mt-5 grid gap-4">
                 {reportSummary.linkOps.map((opportunity: InternalLinkOpportunity) => (
-                  <article key={opportunity.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="grid gap-3 sm:grid-cols-3">
+                  <article key={opportunity.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+                    <div className="grid gap-4 sm:grid-cols-3">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Source page</p>
-                        <p className="mt-1 text-sm text-slate-800">{opportunity.sourceTitle}</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Source page</p>
+                        <p className="mt-1 text-sm font-medium text-slate-900">{opportunity.sourceTitle}</p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Anchor phrase</p>
-                        <p className="mt-1 inline-flex rounded-full bg-indigo-100 px-2.5 py-1 text-sm font-semibold text-indigo-700">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Suggested anchor</p>
+                        <p className="mt-1 inline-flex rounded-full border border-indigo-200 bg-[linear-gradient(135deg,#e0e7ff,#eef2ff)] px-3 py-1 text-sm font-semibold text-indigo-700">
                           {opportunity.suggestedAnchor}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Target page</p>
-                        <p className="mt-1 text-sm text-slate-800">{opportunity.targetTitle}</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Target page</p>
+                        <p className="mt-1 text-sm font-medium text-slate-900">{opportunity.targetTitle}</p>
                       </div>
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-700">
-                      <span className="font-semibold text-slate-900">Context:</span>{" "}
-                      {highlightAnchor(opportunity.matchedSnippet, opportunity.suggestedAnchor)}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      <span className="font-semibold text-slate-900">Why this works:</span> {opportunity.reason}
-                    </p>
+                    <div className="mt-4 space-y-2">
+                      <p className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-700">
+                        <span className="font-semibold text-slate-900">Context match:</span>{" "}
+                        {highlightAnchor(opportunity.matchedSnippet, opportunity.suggestedAnchor)}
+                      </p>
+                      <p className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-600">
+                        <span className="font-semibold text-slate-900">Why this works:</span> {opportunity.reason}
+                      </p>
+                    </div>
                   </article>
                 ))}
               </div>
@@ -540,30 +588,41 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                 <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">What to fix now</h2>
               </div>
             </div>
-            <div className="mt-5 space-y-3">
-              {reportSummary.conciseFixes.map((fix) => (
-                <article key={fix.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="grid gap-4 md:grid-cols-2 md:items-start">
-                    <div>
-                      <p className="text-base font-semibold text-slate-950">{fix.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-600">{fix.issue}</p>
+            <div className="mt-5 space-y-4">
+              {reportSummary.conciseFixes.map((fix) => {
+                const severityMeta = severityBadge(fix.severity);
+
+                return (
+                  <article key={fix.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-[0_16px_40px_-36px_rgba(15,23,42,0.45)]">
+                    <div className="grid gap-4 md:grid-cols-2 md:items-start md:gap-5">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-[17px] font-semibold tracking-tight text-slate-950">{fix.title}</p>
+                          <span
+                            className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${severityMeta.className}`}
+                          >
+                            {severityMeta.label}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{fix.issue}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3.5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Suggested fix</p>
+                        <p className="mt-1.5 text-sm leading-6 text-slate-700">{fix.action}</p>
+                      </div>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Suggested fix</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-700">{fix.action}</p>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-6">
-            <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
               <div>
                 <div className="flex items-center gap-3">
-                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200">
-                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200">
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
                       <rect x="5" y="4" width="14" height="16" rx="2" stroke="currentColor" strokeWidth="1.8" />
                       <path d="m8.5 9.5 2 2 4.5-4.5M8.5 14.5h7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -573,14 +632,14 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                     <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Simple execution checklist</h2>
                   </div>
                 </div>
-                <ol className="mt-4 space-y-2 text-sm text-slate-700">
+                <ol className="mt-4 space-y-2.5 text-sm text-slate-700">
                   <li>1. Implement the priority action first.</li>
                   <li>2. Add the top internal link opportunities from this report.</li>
                   <li>3. Complete at least three high-impact fixes this week.</li>
                   <li>4. Rerun the audit and compare your score trend.</li>
                 </ol>
               </div>
-              <div className="hidden items-center justify-center rounded-xl border border-slate-200 bg-slate-50 md:flex">
+              <div className="hidden items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 md:flex">
                 <svg viewBox="0 0 180 120" className="h-24 w-36 text-indigo-500" fill="none" aria-hidden="true">
                   <rect x="46" y="16" width="88" height="96" rx="10" stroke="currentColor" strokeWidth="3" />
                   <rect x="61" y="34" width="55" height="8" rx="4" fill="currentColor" opacity="0.3" />
@@ -591,7 +650,8 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-indigo-200 bg-[#f1f0ff] p-5 sm:p-6">
+          <section className="relative overflow-hidden rounded-2xl border border-indigo-200 bg-[linear-gradient(145deg,#eef1ff_0%,#f5f5ff_44%,#ffffff_100%)] p-5 sm:p-6">
+            <div className="pointer-events-none absolute right-0 top-0 h-28 w-40 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.2),transparent_68%)]" />
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-indigo-700 ring-1 ring-indigo-200">
@@ -603,21 +663,21 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                   <h2 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
                     Run another audit after updates
                   </h2>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Re-scan the page after changes, or unlock deeper recommendations.
+                  <p className="mt-1.5 text-sm leading-6 text-slate-600">
+                    Re-scan after changes to confirm movement, or unlock deeper recommendations to keep momentum.
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-2.5 sm:flex-row">
                 <Link
                   href="/"
-                  className="inline-flex rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
+                  className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_24px_-18px_rgba(79,70,229,0.95)] transition hover:brightness-105"
                 >
                   Run another audit
                 </Link>
                 <Link
                   href="/pricing"
-                  className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-center text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
                 >
                   Upgrade
                 </Link>
