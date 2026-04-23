@@ -149,10 +149,3 @@ html.dark ::selection {
     transform: translateX(260%);
   }
 }
-
-@media (min-width: 1024px) {
-  .lg\:text-6xl {
-    font-size: 2.75rem;
-    line-height: 1.2;
-  }
-}

@@ -8,7 +8,11 @@ const config: Config = {
     "./lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontSize: {
+        "6xl": ["2.75rem", { lineHeight: "1.2" }],
+      },
+    },
   },
   plugins: [],
 };
