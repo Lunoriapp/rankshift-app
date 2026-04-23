@@ -251,7 +251,7 @@ function hasStructuredHeadingSections(data: CrawlResult): boolean {
 }
 
 function hasSchemaVisibilitySignals(data: CrawlResult): boolean {
-  return data.hasJsonLd;
+  return data.hasJsonLd || (data.schemaTypes?.length ?? 0) > 0;
 }
 
 function normalizeToDisplayScore(value: number, rawMax = RAW_TOTAL_MAX): number {

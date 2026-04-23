@@ -64,6 +64,22 @@ function getDisplayUrlParts(value: string): {
   }
 }
 
+function normalizeSchemaTypeName(type: string): string {
+  const trimmed = type.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const withoutPrefix = trimmed.split("/").pop() ?? trimmed;
+  return withoutPrefix.replace(/^.*:/, "").trim();
+}
+
+function hasSchemaType(types: string[], candidates: string[]): boolean {
+  const lookup = new Set(types.map((type) => type.toLowerCase()));
+  return candidates.some((candidate) => lookup.has(candidate.toLowerCase()));
+}
+
 function getPrimaryFix(fixes: AuditFix[]): AuditFix | null {
   if (fixes.length === 0) {
     return null;
@@ -225,6 +241,28 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     const aiChecks = aiPillar?.checks ?? [];
     const aiIssues = aiChecks.filter((check) => !check.passed);
     const aiFixes = payload.audit.fixes.filter((fix) => fix.pillar === "aiVisibility");
+    const rawSchemaTypes = payload.audit.crawl.schemaTypes ?? [];
+    const schemaTypes = Array.from(
+      new Set(
+        rawSchemaTypes
+          .map((type) => normalizeSchemaTypeName(type))
+          .filter(Boolean),
+      ),
+    );
+    const schemaDetected = payload.audit.crawl.hasJsonLd || schemaTypes.length > 0;
+    const hasFaqSchema = hasSchemaType(schemaTypes, ["FAQPage", "Question", "Answer"]);
+    const hasArticleSchema = hasSchemaType(schemaTypes, ["Article", "BlogPosting", "NewsArticle"]);
+    const hasPersonSchema = hasSchemaType(schemaTypes, ["Person", "Author"]);
+    const missingSchemaSignals = [
+      !hasFaqSchema ? "FAQ schema" : null,
+      !hasArticleSchema ? "Article schema" : null,
+      !hasPersonSchema ? "Author / Person schema" : null,
+    ].filter((item): item is string => Boolean(item));
+    const schemaRecommendations = [
+      !hasFaqSchema ? "Add FAQ schema for question-and-answer content." : null,
+      !hasArticleSchema ? "Add Article schema with headline, author, and date." : null,
+      !hasPersonSchema ? "Add author (Person) schema for credibility signals." : null,
+    ].filter((item): item is string => Boolean(item));
     const severityRank = {
       critical: 0,
       high: 1,
@@ -248,6 +286,10 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
       aiSignalTotalCount: aiChecks.length,
       aiIssues,
       aiPriorityFixes,
+      schemaDetected,
+      schemaTypes,
+      missingSchemaSignals,
+      schemaRecommendations,
     };
   }, [payload]);
 
@@ -606,6 +648,69 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                       <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
                         {reportSummary.highConfidenceLinkOps}/{reportSummary.totalLinkOps}
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Schema signals
+                      </p>
+                      <span
+                        className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                          reportSummary.schemaDetected
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-rose-200 bg-rose-50 text-rose-700"
+                        }`}
+                      >
+                        Schema detected: {reportSummary.schemaDetected ? "Yes" : "No"}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Types found</p>
+                        {reportSummary.schemaTypes.length > 0 ? (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {reportSummary.schemaTypes.map((type) => (
+                              <span
+                                key={type}
+                                className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700"
+                              >
+                                {type}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-1.5 text-sm text-slate-600">No schema types detected in current crawl data.</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Missing key schema</p>
+                        {reportSummary.missingSchemaSignals.length > 0 ? (
+                          <ul className="mt-1.5 space-y-1.5 text-sm text-slate-700">
+                            {reportSummary.missingSchemaSignals.map((item) => (
+                              <li key={item}>- {item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-1.5 text-sm text-emerald-700">Key schema signals are present.</p>
+                        )}
+                      </div>
+
+                      {reportSummary.schemaRecommendations.length > 0 ? (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                            Recommended fixes
+                          </p>
+                          <ul className="mt-1.5 space-y-1.5 text-sm text-slate-700">
+                            {reportSummary.schemaRecommendations.map((item) => (
+                              <li key={item}>- {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>

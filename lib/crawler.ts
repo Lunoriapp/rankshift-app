@@ -77,6 +77,7 @@ export interface SitePageSnapshot {
   statusCode: number;
   contentType: string | null;
   hasJsonLd: boolean;
+  schemaTypes?: string[];
 }
 
 export interface CrawlResult {
@@ -99,6 +100,7 @@ export interface CrawlResult {
   indexable: boolean;
   statusCode: number;
   contentType: string | null;
+  schemaTypes?: string[];
   internalLinking?: InternalLinkingReport;
 }
 
@@ -116,6 +118,7 @@ interface PageExtractionResult {
   contentSections: CrawlContentSection[];
   contentDebug: CrawlContentDebug;
   existingInternalLinks: CrawlInternalLink[];
+  schemaTypes?: string[];
 }
 
 interface RawImageCandidate {
@@ -131,6 +134,7 @@ interface RawPageMetadata {
   canonical: string | null;
   robots: string | null;
   hasJsonLd: boolean;
+  schemaTypes?: string[];
 }
 
 interface CrawlPageSnapshotResult {
@@ -289,6 +293,72 @@ function extractFallbackDiscoveredUrls(html: string, currentUrl: string): string
   return Array.from(urls);
 }
 
+function collectSchemaTypesFromValue(value: unknown, target: Set<string>) {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectSchemaTypesFromValue(item, target);
+    }
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  const typeValue = record["@type"];
+
+  if (typeof typeValue === "string" && typeValue.trim().length > 0) {
+    target.add(typeValue.trim());
+  }
+
+  if (Array.isArray(typeValue)) {
+    for (const entry of typeValue) {
+      if (typeof entry === "string" && entry.trim().length > 0) {
+        target.add(entry.trim());
+      }
+    }
+  }
+
+  const graph = record["@graph"];
+
+  if (Array.isArray(graph)) {
+    for (const node of graph) {
+      collectSchemaTypesFromValue(node, target);
+    }
+  }
+
+  for (const nestedValue of Object.values(record)) {
+    if (nestedValue && typeof nestedValue === "object") {
+      collectSchemaTypesFromValue(nestedValue, target);
+    }
+  }
+}
+
+function extractSchemaTypesFromJsonLdScripts(html: string): string[] {
+  const scripts = Array.from(
+    html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi),
+  );
+  const detectedTypes = new Set<string>();
+
+  for (const script of scripts) {
+    const content = script[1]?.trim();
+
+    if (!content) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(content) as unknown;
+      collectSchemaTypesFromValue(parsed, detectedTypes);
+    } catch {
+      continue;
+    }
+  }
+
+  return Array.from(detectedTypes);
+}
+
 async function crawlPageWithBasicFetch(url: string): Promise<CrawlPageSnapshotResult> {
   const startedAt = Date.now();
   const response = await fetch(url, {
@@ -412,6 +482,7 @@ async function crawlPageWithBasicFetch(url: string): Promise<CrawlPageSnapshotRe
       statusCode: response.status,
       contentType,
       hasJsonLd: /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>/i.test(html),
+      schemaTypes: extractSchemaTypesFromJsonLdScripts(html),
     },
   };
 }
@@ -630,6 +701,63 @@ async function extractPageData(page: Page): Promise<PageExtractionResult> {
         document.querySelector('link[rel="canonical"]')?.getAttribute("href")?.trim() ?? null,
       robots: getMetaContent('meta[name="robots"]'),
       hasJsonLd: document.querySelector('script[type="application/ld+json"]') !== null,
+      schemaTypes: (() => {
+        const scripts = Array.from(
+          document.querySelectorAll('script[type="application/ld+json"]'),
+        );
+        const types = new Set<string>();
+
+        const collectTypes = (value: unknown) => {
+          if (!value || typeof value !== "object") {
+            return;
+          }
+
+          if (Array.isArray(value)) {
+            value.forEach(collectTypes);
+            return;
+          }
+
+          const record = value as Record<string, unknown>;
+          const typeValue = record["@type"];
+
+          if (typeof typeValue === "string" && typeValue.trim().length > 0) {
+            types.add(typeValue.trim());
+          }
+
+          if (Array.isArray(typeValue)) {
+            typeValue.forEach((entry) => {
+              if (typeof entry === "string" && entry.trim().length > 0) {
+                types.add(entry.trim());
+              }
+            });
+          }
+
+          const graphValue = record["@graph"];
+          if (Array.isArray(graphValue)) {
+            graphValue.forEach(collectTypes);
+          }
+
+          Object.values(record).forEach((entry) => {
+            if (entry && typeof entry === "object") {
+              collectTypes(entry);
+            }
+          });
+        };
+
+        scripts.forEach((script) => {
+          try {
+            const content = script.textContent?.trim() ?? "";
+            if (!content) {
+              return;
+            }
+            collectTypes(JSON.parse(content) as unknown);
+          } catch {
+            return;
+          }
+        });
+
+        return Array.from(types);
+      })(),
     };
   });
   const editorial = await page.evaluate(extractEditorialContentInBrowser, {
@@ -742,6 +870,7 @@ async function crawlPageSnapshot(browser: Browser, url: string): Promise<{
         statusCode: response.status(),
         contentType,
         hasJsonLd: extracted.hasJsonLd,
+        schemaTypes: extracted.schemaTypes ?? [],
       },
     };
   } finally {
@@ -776,6 +905,7 @@ export async function crawlPage(url: string): Promise<CrawlResult> {
       indexable: snapshot.indexable,
       statusCode: snapshot.statusCode,
       contentType: snapshot.contentType,
+      schemaTypes: snapshot.schemaTypes ?? [],
     };
   } catch (error) {
     if (shouldUseBasicFetchFallback(error)) {
@@ -801,6 +931,7 @@ export async function crawlPage(url: string): Promise<CrawlResult> {
         indexable: snapshot.indexable,
         statusCode: snapshot.statusCode,
         contentType: snapshot.contentType,
+        schemaTypes: snapshot.schemaTypes ?? [],
       };
     }
 
