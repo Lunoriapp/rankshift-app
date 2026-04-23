@@ -3,13 +3,7 @@ import type { ReactNode } from "react";
 
 import { AuditForm } from "@/components/audit-form";
 import { AuthBootstrap } from "@/components/auth-bootstrap";
-
-const navItems = [
-  { label: "Features", href: "/features" },
-  { label: "How it Works", href: "/how-it-works" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Resources", href: "/resources" },
-];
+import { MarketingSiteHeader } from "@/components/marketing-site-header";
 
 type FeatureItem = {
   title: string;
@@ -120,34 +114,7 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#f6f7fb] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
       <AuthBootstrap />
       <div className="mx-auto max-w-[1180px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)]">
-        <header className="border-b border-slate-100 px-6 py-5 sm:px-8 lg:px-10">
-          <div className="flex items-center justify-between gap-4">
-            <div className="text-4xl font-semibold tracking-tight text-slate-950">
-              Rankshift
-            </div>
-            <nav className="hidden items-center gap-9 text-sm font-medium text-slate-600 lg:flex">
-              {navItems.map((item) => (
-                <Link key={item.label} href={item.href} className="transition hover:text-slate-900">
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                className="hidden text-sm font-semibold text-slate-700 transition hover:text-slate-950 sm:inline-flex"
-              >
-                Log in
-              </button>
-              <a
-                href="#start-audit"
-                className="rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-16px_rgba(79,70,229,0.95)] transition hover:brightness-105"
-              >
-                Start Free Audit
-              </a>
-            </div>
-          </div>
-        </header>
+        <MarketingSiteHeader />
 
         <section className="px-6 pb-8 pt-8 sm:px-8 lg:px-10 lg:pb-10">
           <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
