@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { ThemeToggle } from "@/components/theme-toggle";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,26 +12,8 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function () {
-                try {
-                  var storageKey = "theme";
-                  var storedTheme = window.localStorage.getItem(storageKey);
-                  var theme = storedTheme === "light" || storedTheme === "dark"
-                    ? storedTheme
-                    : "light";
-                  document.documentElement.classList.toggle("dark", theme === "dark");
-                  document.documentElement.style.colorScheme = theme;
-                } catch (error) {}
-              })();
-            `,
-          }}
-        />
-        <ThemeToggle />
+    <html lang="en">
+      <body className="bg-slate-50 text-slate-900">
         {children}
       </body>
     </html>
