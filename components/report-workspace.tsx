@@ -120,9 +120,32 @@ function issuesStatus(issueCount: number): { label: string; className: string } 
   return { label: "High priority", className: "text-rose-600" };
 }
 
-function gradientRing(readinessScore: number): string {
-  const clamped = Math.max(0, Math.min(100, readinessScore));
-  return `conic-gradient(rgb(79 70 229) ${clamped}%, rgb(226 232 240) 0)`;
+function aiReadinessStatus(score: number): {
+  label: string;
+  ringClassName: string;
+  badgeClassName: string;
+} {
+  if (score <= 40) {
+    return {
+      label: "Needs attention",
+      ringClassName: "text-rose-500",
+      badgeClassName: "border-rose-200 bg-rose-50 text-rose-700",
+    };
+  }
+
+  if (score <= 70) {
+    return {
+      label: "Improving",
+      ringClassName: "text-amber-500",
+      badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  return {
+    label: "Good",
+    ringClassName: "text-emerald-500",
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  };
 }
 
 function severityBadge(severity: AuditFix["severity"]): { label: string; className: string } {
@@ -150,6 +173,8 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
+  const [shareFeedback, setShareFeedback] = useState<"idle" | "shared" | "copied" | "error">("idle");
 
   useEffect(() => {
     const load = async () => {
@@ -248,8 +273,76 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
 
   const scoreMeta = scoreStatus(reportSummary.score);
   const issuesMeta = issuesStatus(reportSummary.issueCount);
-  const aiMeta = scoreStatus(reportSummary.aiReadiness);
+  const aiMeta = aiReadinessStatus(reportSummary.aiReadiness);
   const displayUrl = getDisplayUrlParts(payload.audit.url);
+  const aiRingSize = 112;
+  const aiRingStroke = 10;
+  const aiRingRadius = (aiRingSize - aiRingStroke) / 2;
+  const aiRingCircumference = 2 * Math.PI * aiRingRadius;
+  const aiRingOffset = aiRingCircumference * (1 - Math.max(0, Math.min(100, reportSummary.aiReadiness)) / 100);
+  const canDownloadPdf = false;
+
+  const setCopyFeedbackWithReset = (value: "copied" | "error") => {
+    setCopyFeedback(value);
+    window.setTimeout(() => setCopyFeedback("idle"), 2000);
+  };
+
+  const setShareFeedbackWithReset = (value: "shared" | "copied" | "error") => {
+    setShareFeedback(value);
+    window.setTimeout(() => setShareFeedback("idle"), 2000);
+  };
+
+  const copyCurrentPageUrl = async (): Promise<boolean> => {
+    const url = window.location.href;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      return true;
+    } catch {
+      try {
+        const temporaryInput = document.createElement("textarea");
+        temporaryInput.value = url;
+        temporaryInput.setAttribute("readonly", "");
+        temporaryInput.style.position = "absolute";
+        temporaryInput.style.left = "-9999px";
+        document.body.appendChild(temporaryInput);
+        temporaryInput.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(temporaryInput);
+        return copied;
+      } catch {
+        return false;
+      }
+    }
+  };
+
+  const handleCopyLink = async () => {
+    const copied = await copyCurrentPageUrl();
+    setCopyFeedbackWithReset(copied ? "copied" : "error");
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: "Rankshift audit report",
+      text: "Review this Rankshift audit report.",
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setShareFeedbackWithReset("shared");
+        return;
+      }
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === "AbortError") {
+        return;
+      }
+    }
+
+    const copied = await copyCurrentPageUrl();
+    setShareFeedbackWithReset(copied ? "copied" : "error");
+  };
 
   return (
     <main className="min-h-screen bg-[#f6f7fb] px-4 py-4 text-slate-900 sm:px-6 lg:px-8">
@@ -295,10 +388,35 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
             <Link href="/reports" className="text-slate-600 transition hover:text-slate-900">
               &larr; Back to audits
             </Link>
-            <div className="flex items-center gap-2 text-slate-500">
-              <button type="button" className="rounded-lg px-3 py-1.5 transition hover:bg-slate-100">Download PDF</button>
-              <button type="button" className="rounded-lg px-3 py-1.5 transition hover:bg-slate-100">Share</button>
-              <button type="button" className="rounded-lg px-3 py-1.5 transition hover:bg-slate-100">Copy link</button>
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 text-slate-600">
+              {canDownloadPdf ? (
+                <Link
+                  href={`/report/${reportId}/export`}
+                  className="inline-flex items-center rounded-lg px-3 py-1.5 font-medium transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                >
+                  Download PDF
+                </Link>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void handleShare()}
+                className="inline-flex items-center rounded-lg px-3 py-1.5 font-medium transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+              >
+                {shareFeedback === "shared"
+                  ? "Shared"
+                  : shareFeedback === "copied"
+                    ? "Link copied"
+                    : shareFeedback === "error"
+                      ? "Share failed"
+                      : "Share"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCopyLink()}
+                className="inline-flex items-center rounded-lg px-3 py-1.5 font-medium transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+              >
+                {copyFeedback === "copied" ? "Copied" : copyFeedback === "error" ? "Copy failed" : "Copy link"}
+              </button>
             </div>
           </div>
 
@@ -407,17 +525,48 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                 <div className="space-y-3">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex items-center gap-4">
-                      <div className="grid h-24 w-24 place-items-center rounded-full p-1" style={{ background: gradientRing(reportSummary.aiReadiness) }}>
-                        <div className="grid h-full w-full place-items-center rounded-full bg-white">
-                          <p className="text-center text-xs font-medium text-slate-600">
-                            <span className="block text-3xl font-semibold tracking-tight text-slate-950">{reportSummary.aiReadiness}</span>
-                            / 100
-                          </p>
+                      <div className="relative grid h-28 w-28 place-items-center">
+                        <svg
+                          width={aiRingSize}
+                          height={aiRingSize}
+                          viewBox={`0 0 ${aiRingSize} ${aiRingSize}`}
+                          className="-rotate-90"
+                          aria-hidden="true"
+                        >
+                          <circle
+                            cx={aiRingSize / 2}
+                            cy={aiRingSize / 2}
+                            r={aiRingRadius}
+                            stroke="currentColor"
+                            strokeWidth={aiRingStroke}
+                            className="text-slate-200"
+                            fill="none"
+                          />
+                          <circle
+                            cx={aiRingSize / 2}
+                            cy={aiRingSize / 2}
+                            r={aiRingRadius}
+                            stroke="currentColor"
+                            strokeWidth={aiRingStroke}
+                            strokeLinecap="round"
+                            strokeDasharray={aiRingCircumference}
+                            strokeDashoffset={aiRingOffset}
+                            className={`${aiMeta.ringClassName} transition-[stroke-dashoffset] duration-500 ease-out`}
+                            fill="none"
+                          />
+                        </svg>
+                        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+                          <p className="text-3xl font-semibold tracking-tight text-slate-950">{reportSummary.aiReadiness}</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">/100</p>
                         </div>
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-900">Readiness score</p>
-                        <p className={`mt-1 text-sm font-semibold ${aiMeta.className}`}>{aiMeta.label}</p>
+                        <span
+                          className={`mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] ${aiMeta.badgeClassName}`}
+                        >
+                          {aiMeta.label}
+                        </span>
                         <p className="mt-2 text-xs text-slate-500">How likely this page is to be cited in AI-generated answers.</p>
                       </div>
                     </div>
