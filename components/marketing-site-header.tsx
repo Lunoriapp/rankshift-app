@@ -41,7 +41,7 @@ export function MarketingSiteHeader() {
             <span className="text-3xl font-semibold tracking-tight text-slate-950">Rankshift</span>
           ) : (
             <img
-              src="/rankshift-logo.png"
+              src="/rankshift-logo.webp"
               alt="Rankshift"
               className="h-7 w-auto sm:h-8"
               onError={() => setLogoLoadFailed(true)}
