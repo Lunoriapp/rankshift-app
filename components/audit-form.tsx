@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useId, useState } from "react";
 
 import { AuditLoadingState } from "@/components/audit-loading-state";
 import { getSupabaseAccessToken } from "@/lib/supabase-browser";
@@ -11,6 +11,8 @@ interface AuditFormProps {
   buttonLabel?: string;
   className?: string;
   compact?: boolean;
+  helperText?: string;
+  showHighlights?: boolean;
 }
 
 const MIN_LOADING_STATE_MS = 6500;
@@ -25,7 +27,11 @@ export function AuditForm({
   buttonLabel = "Run Rankshift audit",
   className,
   compact = false,
+  helperText,
+  showHighlights = true,
 }: AuditFormProps) {
+  const inputId = useId();
+  const errorId = useId();
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +124,7 @@ export function AuditForm({
           Website to audit
         </label>
         <input
-          id="url"
+          id={inputId}
           type="text"
           value={url}
           onChange={(event) => {
@@ -134,7 +140,7 @@ export function AuditForm({
           autoCorrect="off"
           spellCheck={false}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "audit-url-error" : undefined}
+          aria-describedby={error ? errorId : undefined}
           className={`${compact ? "h-12 text-sm" : "h-14"} w-full bg-white px-5 text-slate-900 outline-none placeholder:text-slate-400`}
           required
         />
@@ -146,16 +152,23 @@ export function AuditForm({
           {isSubmitting ? "Running..." : buttonLabel}
         </button>
       </div>
-      <div
-        className={`${compact ? "mt-2 gap-x-4 text-xs" : "mt-3 gap-x-5 text-sm"} flex flex-wrap items-center gap-y-2 text-slate-500`}
-      >
-        <span>No signup required</span>
-        <span>Results in under 10 seconds</span>
-        <span>Works on any website</span>
-        <span>Built for modern search and AI</span>
-      </div>
+      {helperText ? (
+        <p className={`${compact ? "mt-2 text-xs" : "mt-3 text-sm"} text-slate-500`}>
+          {helperText}
+        </p>
+      ) : null}
+      {showHighlights ? (
+        <div
+          className={`${compact ? "mt-2 gap-x-4 text-xs" : "mt-3 gap-x-5 text-sm"} flex flex-wrap items-center gap-y-2 text-slate-500`}
+        >
+          <span>No signup required</span>
+          <span>Results in under 10 seconds</span>
+          <span>Works on any website</span>
+          <span>Built for modern search and AI</span>
+        </div>
+      ) : null}
       {error ? (
-        <p id="audit-url-error" className="mt-2 text-sm text-red-600 dark:text-red-400">
+        <p id={errorId} className="mt-2 text-sm text-red-600 dark:text-red-400">
           {error}
         </p>
       ) : null}

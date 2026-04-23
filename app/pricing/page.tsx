@@ -67,7 +67,7 @@ export default function PricingPage() {
 
       <div className="mt-8">
         <Link
-          href="/#start-audit"
+          href="/start-free-audit"
           className="inline-flex rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
         >
           Start Free Audit
