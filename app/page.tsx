@@ -9,6 +9,14 @@ type IconItem = {
   title: string;
   description: string;
   icon: ReactNode;
+  iconTone: "indigo" | "sky" | "emerald" | "amber";
+};
+
+const iconToneClasses: Record<IconItem["iconTone"], string> = {
+  indigo: "bg-indigo-100 text-indigo-700 ring-indigo-200",
+  sky: "bg-sky-100 text-sky-700 ring-sky-200",
+  emerald: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+  amber: "bg-amber-100 text-amber-700 ring-amber-200",
 };
 
 const benefits = [
@@ -16,27 +24,29 @@ const benefits = [
     title: "Find what's blocking your rankings",
     description: "Surface the issues suppressing visibility across search results.",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
         <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
         <path d="m16 16 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     ),
+    iconTone: "indigo",
   },
   {
     title: "Know exactly what to fix first",
     description: "Get a clear priority order so your team ships high-impact updates first.",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
         <path d="M8 4h8l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3Z" stroke="currentColor" strokeWidth="1.7" />
         <path d="M8 12h8M8 16h5M8 8h3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
       </svg>
     ),
+    iconTone: "sky",
   },
   {
     title: "Add internal links that improve relevance",
     description: "Uncover contextual link opportunities between your existing pages.",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
         <path
           d="M9 12a3.5 3.5 0 0 1 0-5l2.5-2.5a3.5 3.5 0 0 1 5 5L15 11"
           stroke="currentColor"
@@ -51,6 +61,7 @@ const benefits = [
         />
       </svg>
     ),
+    iconTone: "indigo",
   },
 ] satisfies IconItem[];
 
@@ -59,7 +70,7 @@ const auditCoverage = [
     title: "Technical issues",
     description: "Detect crawl and indexability problems that hold back performance.",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-emerald-600" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
         <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.8" />
         <path
           d="M12 3.5v2.3M12 18.2v2.3M20.5 12h-2.3M5.8 12H3.5M18.2 5.8l-1.6 1.6M7.4 16.6l-1.6 1.6M18.2 18.2l-1.6-1.6M7.4 7.4 5.8 5.8"
@@ -69,22 +80,24 @@ const auditCoverage = [
         />
       </svg>
     ),
+    iconTone: "emerald",
   },
   {
     title: "On-page fixes",
     description: "Get direct recommendations for titles, headings, and content quality.",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-sky-600" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
         <path d="M7 3.5h8l4 4V20a.5.5 0 0 1-.5.5h-13A.5.5 0 0 1 5 20V4a.5.5 0 0 1 .5-.5H7Z" stroke="currentColor" strokeWidth="1.8" />
         <path d="M8 11h8M8 15h6M8 7h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     ),
+    iconTone: "sky",
   },
   {
     title: "Internal links",
     description: "See where to add links to improve topical relevance and discoverability.",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
         <path
           d="M9 12a3.5 3.5 0 0 1 0-5l2.5-2.5a3.5 3.5 0 0 1 5 5L15 11"
           stroke="currentColor"
@@ -99,15 +112,17 @@ const auditCoverage = [
         />
       </svg>
     ),
+    iconTone: "indigo",
   },
   {
     title: "AI visibility",
     description: "Spot gaps that limit how your pages appear in AI-driven answers.",
     icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-amber-500" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
         <path d="m12 4 2.1 4.9 4.9 2.1-4.9 2.1L12 18l-2.1-4.9L5 11l4.9-2.1L12 4Z" stroke="currentColor" strokeWidth="1.8" />
       </svg>
     ),
+    iconTone: "amber",
   },
 ] satisfies IconItem[];
 
@@ -302,7 +317,9 @@ export default function HomePage() {
                 ].map((item) => (
                   <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                     <div className="flex gap-3">
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
+                      <span
+                        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset ${iconToneClasses.indigo}`}
+                      >
                         {item.icon}
                       </span>
                       <div>
@@ -360,8 +377,10 @@ export default function HomePage() {
         <section className="border-y border-slate-100 bg-slate-50/80 px-6 py-6 sm:px-8 lg:px-10">
           <div className="grid gap-4 md:grid-cols-3">
             {benefits.map((item) => (
-              <article key={item.title} className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
+              <article key={item.title} className="rounded-xl border border-slate-200 bg-white p-5">
+                <div
+                  className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl ring-1 ring-inset ${iconToneClasses[item.iconTone]}`}
+                >
                   {item.icon}
                 </div>
                 <p className="text-2xl font-semibold leading-tight text-slate-900">{item.title}</p>
@@ -381,7 +400,9 @@ export default function HomePage() {
           <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {auditCoverage.map((item) => (
               <article key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white">
+                <div
+                  className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl ring-1 ring-inset ${iconToneClasses[item.iconTone]}`}
+                >
                   {item.icon}
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900">{item.title}</h3>
