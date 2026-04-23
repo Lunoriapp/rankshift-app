@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -434,8 +435,19 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
         <header className="border-b border-slate-100 px-5 py-4 sm:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-8">
-              <Link href="/" className="text-[2.1rem] font-semibold tracking-tight text-slate-950">
-                Rankshift
+              <Link
+                href="/"
+                aria-label="Go to Rankshift homepage"
+                className="inline-flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+              >
+                <Image
+                  src="/rankshift-logo.png"
+                  alt="Rankshift"
+                  width={180}
+                  height={40}
+                  priority
+                  className="h-7 w-auto sm:h-8"
+                />
               </Link>
               <nav className="hidden items-center gap-2 md:flex" aria-label="Product navigation">
                 <Link

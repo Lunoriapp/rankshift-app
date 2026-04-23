@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
@@ -34,9 +35,16 @@ export function MarketingSiteHeader() {
         <Link
           href="/"
           aria-label="Go to Rankshift homepage"
-          className="text-4xl font-semibold tracking-tight text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+          className="inline-flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
         >
-          Rankshift
+          <Image
+            src="/rankshift-logo.png"
+            alt="Rankshift"
+            width={180}
+            height={40}
+            priority
+            className="h-7 w-auto sm:h-8"
+          />
         </Link>
 
         <nav aria-label="Primary navigation" className="hidden items-center gap-9 text-sm font-medium text-slate-600 lg:flex">
