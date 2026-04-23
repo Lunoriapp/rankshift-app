@@ -1,111 +1,40 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 
 import { AuditForm } from "@/components/audit-form";
 import { AuthBootstrap } from "@/components/auth-bootstrap";
 import { MarketingSiteHeader } from "@/components/marketing-site-header";
 
-type FeatureItem = {
-  title: string;
-  description: string;
-  icon: ReactNode;
-};
-
-const topFeatureStrip: FeatureItem[] = [
+const benefits = [
   {
-    title: "Find the Right Issues",
-    description: "We scan your page in depth to find what's holding your rankings back.",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
-        <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
-        <path d="m16 16 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      </svg>
-    ),
+    title: "Find what's blocking your rankings",
+    description: "Surface the issues suppressing visibility across search results.",
   },
   {
-    title: "Get Clear Fixes",
-    description: "Actionable recommendations you can implement right away.",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
-        <path
-          d="M9.5 20.5H4a1 1 0 0 1-1-1V14l11.3-11.3a1.7 1.7 0 0 1 2.4 0l4.6 4.6a1.7 1.7 0 0 1 0 2.4L10 21a1 1 0 0 1-.5.3Z"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinejoin="round"
-        />
-        <path d="m13.5 4.5 6 6" stroke="currentColor" strokeWidth="1.6" />
-      </svg>
-    ),
+    title: "Know exactly what to fix first",
+    description: "Get a clear priority order so your team ships high-impact updates first.",
   },
   {
-    title: "Add Smart Internal Links",
-    description: "Find contextual link opportunities to boost relevance and rankings.",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
-        <path
-          d="M9 12a3.5 3.5 0 0 1 0-5l2.5-2.5a3.5 3.5 0 0 1 5 5L15 11"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <path
-          d="M15 12a3.5 3.5 0 0 1 0 5l-2.5 2.5a3.5 3.5 0 1 1-5-5L9 13"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    title: "Know Your Next Move",
-    description: "Prioritized next steps so you always know what to focus on.",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-600" fill="none" aria-hidden="true">
-        <path d="M12 3.5V12l5.5 2.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.8" />
-      </svg>
-    ),
+    title: "Add internal links that improve relevance",
+    description: "Uncover contextual link opportunities between your existing pages.",
   },
 ];
 
-const outcomes = [
+const auditCoverage = [
   {
-    value: "Clear",
-    valueClassName: "text-3xl sm:text-4xl",
-    title: "Priority fixes first",
-    description: "Resolve the issues most likely to hold back visibility",
+    title: "Technical issues",
+    description: "Detect crawl and indexability problems that hold back performance.",
   },
   {
-    value: "Natural",
-    valueClassName: "text-3xl sm:text-4xl",
-    title: "Internal links from real content",
-    description: "Use existing phrases on the page as clean anchor text",
+    title: "On-page fixes",
+    description: "Get direct recommendations for titles, headings, and content quality.",
   },
   {
-    value: "Stronger",
-    valueClassName: "text-3xl sm:text-4xl",
-    title: "Visibility across search surfaces",
-    description: "Improve coverage in classic results, AI overviews, and assistants",
-  },
-];
-
-const builtFor = [
-  {
-    title: "SEO Professionals",
-    description: "Deliver better results for your clients.",
+    title: "Internal links",
+    description: "See where to add links to improve topical relevance and discoverability.",
   },
   {
-    title: "Agencies",
-    description: "Scale audits and recommendations.",
-  },
-  {
-    title: "Business Owners",
-    description: "Improve your site without the guesswork.",
-  },
-  {
-    title: "Content Creators",
-    description: "Make every page more discoverable.",
+    title: "AI visibility",
+    description: "Spot gaps that limit how your pages appear in AI-driven answers.",
   },
 ];
 
@@ -116,239 +45,123 @@ export default function HomePage() {
       <div className="mx-auto max-w-[1180px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_80px_-50px_rgba(15,23,42,0.35)]">
         <MarketingSiteHeader />
 
-        <section className="px-6 pb-8 pt-8 sm:px-8 lg:px-10 lg:pb-10">
+        <section id="scan-start" className="px-6 pb-8 pt-8 sm:px-8 lg:px-10 lg:pb-10">
           <div className="grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
             <div className="max-w-[560px]">
               <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
-                AI-powered SEO audits
+                AI-powered SEO audit
               </p>
-              <h1 className="mt-5 max-w-[14ch] text-4xl font-semibold leading-[1.08] tracking-tight text-slate-950 sm:text-5xl">
-                Fix pages for{" "}
-                <span className="text-indigo-600">Google, ChatGPT, and AI search</span>
+              <h1 className="mt-5 max-w-[16ch] text-4xl font-semibold leading-[1.08] tracking-tight text-slate-950 sm:text-5xl">
+                See why your page isn&apos;t showing in Google and AI results
               </h1>
-              <p className="mt-5 max-w-lg text-xl leading-7 text-slate-600">
-                Get a clear action plan to improve rankings, add better internal links, and increase visibility across modern search and AI results.
+              <p className="mt-5 max-w-xl text-xl leading-8 text-slate-600">
+                Run a focused scan to find missed visibility, priority fixes, and internal links you can ship straight away.
               </p>
-              <div id="start-audit">
-                <AuditForm
-                  buttonLabel="Run Audit ->"
-                  className="max-w-[560px]"
-                />
-              </div>
-              <p className="mt-2 text-sm text-slate-500">
-                Works for Google, AI overviews, and LLM-driven search
-              </p>
+              <AuditForm
+                buttonLabel="Scan My Page"
+                className="max-w-[560px]"
+                helperText="No need to include https://"
+                showHighlights={false}
+              />
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)]">
-              <div className="flex items-center gap-2 border-b border-slate-100 px-2 pb-3">
-                <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
-                <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+            <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)]">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-2 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+                </div>
+                <p className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  Example audit result
+                </p>
               </div>
-              <div className="grid gap-4 p-2 pt-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">What you'll get from this scan</p>
-                    <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
-                      yourwebsite.com
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">Scanned just now</p>
-                  </div>
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full border-[6px] border-emerald-400 text-4xl font-semibold text-slate-900">
-                    78
+
+              <div className="space-y-4 p-2 pt-4">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
+                  <p className="text-xs font-medium text-indigo-700">
+                    Preview only · final results generated after your live scan
+                  </p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
+                    <div className="h-full w-1/2 rounded-full bg-indigo-500" />
                   </div>
                 </div>
+
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Sample page format
+                    </p>
+                    <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">yourwebsite.com/page</p>
+                    <p className="mt-1 text-xs text-slate-500">Illustrative layout preview</p>
+                  </div>
+                  <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-2xl border-2 border-emerald-400 bg-emerald-50 text-slate-900">
+                    <p className="text-3xl font-semibold leading-none">78</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700">Score</p>
+                  </div>
+                </div>
+
                 <div className="grid gap-3 sm:grid-cols-4">
                   {[
-                    ["Issues found", "24"],
-                    ["Critical issues", "7"],
-                    ["Internal links", "32"],
-                    ["Improve score", "+21"],
-                  ].map(([label, value]) => (
+                    ["Issues found", "24", "text-rose-600"],
+                    ["Critical", "7", "text-rose-600"],
+                    ["Links", "32", "text-indigo-600"],
+                    ["Potential lift", "+21", "text-emerald-600"],
+                  ].map(([label, value, valueColor]) => (
                     <div key={label} className="rounded-xl border border-slate-200 px-3 py-3">
                       <p className="text-xs font-medium text-slate-500">{label}</p>
-                      <p className="mt-1 text-4xl font-semibold tracking-tight text-slate-950">
-                        {value}
-                      </p>
+                      <p className={`mt-1 text-3xl font-semibold tracking-tight ${valueColor}`}>{value}</p>
                     </div>
                   ))}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Top issues</p>
-                    <div className="mt-3 space-y-2 text-sm text-slate-600">
-                      <p>Title tag too long</p>
-                      <p>Missing meta description</p>
-                      <p>H1 tag missing</p>
-                      <p>Image missing ALT text</p>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 p-3">
-                    <p className="text-sm font-semibold text-slate-800">Internal links to add</p>
-                    <div className="mt-3 space-y-2 text-sm text-slate-600">
-                      <p>
-                        Add from <span className="font-semibold">/blog/seo-tips</span> to{" "}
-                        <span className="font-semibold">/seo-tools</span>
-                      </p>
-                      <p>
-                        Add from <span className="font-semibold">/services/seo</span> to{" "}
-                        <span className="font-semibold">/case-studies</span>
-                      </p>
-                      <p className="pt-1 font-semibold text-indigo-600">
-                        View all link opportunities &rarr;
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </div>
-            </div>
+            </aside>
           </div>
         </section>
 
         <section className="border-y border-slate-100 bg-slate-50/80 px-6 py-6 sm:px-8 lg:px-10">
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {topFeatureStrip.map((item) => (
-              <div key={item.title} className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
-                  {item.icon}
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-slate-900">{item.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
-                </div>
-              </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {benefits.map((item) => (
+              <article key={item.title} className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-base font-semibold text-slate-900">{item.title}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
+              </article>
             ))}
           </div>
         </section>
 
         <section className="px-6 py-8 sm:px-8 lg:px-10 lg:py-10">
-          <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-            <div className="rounded-2xl border border-slate-200 p-5">
-              <div className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
-                <div>
-                  <p className="text-sm font-semibold text-indigo-600">Internal links · Opportunity</p>
-                  <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-                    Add this contextual link
-                  </h2>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-slate-600">
-                      Source page: /blog/seo-tips
-                    </div>
-                    <div className="rounded-lg bg-emerald-50 px-3 py-2 text-slate-700">
-                      Suggested anchor: "...using the right <span className="font-semibold">SEO tools</span> ..."
-                    </div>
-                    <div className="rounded-lg border border-slate-200 px-3 py-2 text-slate-600">
-                      Target page: /seo-tools
-                    </div>
-                    <p className="text-slate-600">
-                      This link helps users discover a relevant resource and strengthens topical relevance between pages.
-                    </p>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your page content</p>
-                  <div className="mt-3 space-y-2">
-                    {Array.from({ length: 12 }).map((_, index) => (
-                      <div
-                        key={`line-${index}`}
-                        className={`h-2.5 rounded bg-slate-200 ${index === 4 ? "bg-emerald-200" : ""}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 p-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.13em] text-indigo-600">
-                Contextual. Relevant. Actionable.
-              </p>
-              <h3 className="mt-3 text-4xl font-semibold leading-[1.08] tracking-tight text-slate-950 sm:text-[2.4rem]">
-                Internal links from your existing page content
-              </h3>
-              <p className="mt-4 text-xl leading-8 text-slate-600">
-                We show you the exact words to link, the page to link to, and why it matters.
-              </p>
-              <ul className="mt-5 space-y-3 text-base text-slate-700">
-                <li>Contextual anchor text from your content</li>
-                <li>Related pages that deserve a link</li>
-                <li>Boost relevance, crawlability, and rankings</li>
-                <li>Easy to review and implement</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-6 px-6 pb-8 sm:px-8 lg:grid-cols-[1.6fr_1fr] lg:px-10">
-          <div className="rounded-2xl bg-[#f5f4ff] p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.13em] text-indigo-600">
-              Practical outcomes after implementation
-            </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              {outcomes.map((item) => (
-                <div key={item.title} className="rounded-xl bg-white px-4 py-4">
-                  <p
-                    className={`${item.valueClassName} font-semibold leading-tight tracking-tight text-slate-950`}
-                  >
-                    {item.value}
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-slate-900">{item.title}</p>
-                  <p className="mt-1 text-sm text-slate-600">{item.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-[#f5f4ff] p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.13em] text-indigo-600">Built for</p>
-            <div className="mt-4 space-y-4">
-              {builtFor.map((item) => (
-                <div key={item.title}>
-                  <p className="text-lg font-semibold text-slate-900">{item.title}</p>
-                  <p className="text-sm text-slate-600">{item.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="px-6 pb-4 sm:px-8 lg:px-10">
-          <div className="rounded-2xl bg-[#f1f0ff] px-4 py-3 text-center sm:px-8 sm:py-4">
-            <h2 className="mx-auto max-w-2xl text-2xl font-semibold leading-tight tracking-tight text-slate-950 md:text-3xl">
-              Run a scan and get your next SEO + AI actions
+          <div className="mx-auto max-w-3xl text-center">
+            <h2 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+              What you&apos;ll get
             </h2>
-            <p className="mx-auto mt-1 max-w-2xl text-sm leading-5 text-slate-500">
-              Enter any URL to get fix priorities, internal link opportunities, and AI visibility improvements in seconds.
-            </p>
-            <div className="mx-auto mt-2 max-w-2xl">
-              <AuditForm buttonLabel="Run Audit ->" className="mx-auto mt-0" compact />
-            </div>
+          </div>
+
+          <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {auditCoverage.map((item) => (
+              <article key={item.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <h3 className="text-lg font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
+              </article>
+            ))}
           </div>
         </section>
 
-        <footer className="border-t border-slate-100 px-6 py-5 text-sm text-slate-600 sm:px-8 lg:px-10">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="font-semibold text-slate-900">Rankshift</p>
-            <div className="flex flex-wrap items-center gap-5">
-              <Link href="/features" className="hover:text-slate-900">
-                Features
-              </Link>
-              <Link href="/how-it-works" className="hover:text-slate-900">
-                How it Works
-              </Link>
-              <Link href="/pricing" className="hover:text-slate-900">
-                Pricing
-              </Link>
-              <Link href="/resources" className="hover:text-slate-900">
-                Resources
-              </Link>
-              <Link href="/reports" className="hover:text-slate-900">
-                Contact
+        <section className="border-t border-slate-100 bg-white px-6 py-10 sm:px-8 lg:px-10">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+              Scan your page now
+            </h2>
+            <div className="mt-6">
+              <Link
+                href="#scan-start"
+                className="inline-flex rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_-16px_rgba(79,70,229,0.95)] transition hover:brightness-105"
+              >
+                Scan My Page
               </Link>
             </div>
           </div>
-        </footer>
+        </section>
       </div>
     </main>
   );
