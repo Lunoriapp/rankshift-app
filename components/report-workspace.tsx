@@ -525,7 +525,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                 <div className="space-y-3">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex items-center gap-4">
-                      <div className="relative grid h-28 w-28 place-items-center">
+                      <div className="relative flex h-28 w-28 items-center justify-center">
                         <svg
                           width={aiRingSize}
                           height={aiRingSize}
@@ -534,8 +534,8 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                           aria-hidden="true"
                         >
                           <circle
-                            cx={aiRingSize / 2}
-                            cy={aiRingSize / 2}
+                            cx="50%"
+                            cy="50%"
                             r={aiRingRadius}
                             stroke="currentColor"
                             strokeWidth={aiRingStroke}
@@ -543,8 +543,8 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                             fill="none"
                           />
                           <circle
-                            cx={aiRingSize / 2}
-                            cy={aiRingSize / 2}
+                            cx="50%"
+                            cy="50%"
                             r={aiRingRadius}
                             stroke="currentColor"
                             strokeWidth={aiRingStroke}
@@ -554,11 +554,29 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                             className={`${aiMeta.ringClassName} transition-[stroke-dashoffset] duration-500 ease-out`}
                             fill="none"
                           />
+                          <text
+                            x="50%"
+                            y="50%"
+                            dy="0.05em"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            className="fill-slate-950 text-[1.7rem] font-semibold tracking-tight"
+                            transform={`rotate(90 ${aiRingSize / 2} ${aiRingSize / 2})`}
+                          >
+                            {reportSummary.aiReadiness}
+                          </text>
+                          <text
+                            x="50%"
+                            y="50%"
+                            dy="2.2em"
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            className="fill-slate-500 text-[11px] font-semibold uppercase tracking-[0.1em]"
+                            transform={`rotate(90 ${aiRingSize / 2} ${aiRingSize / 2})`}
+                          >
+                            /100
+                          </text>
                         </svg>
-                        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-                          <p className="text-3xl font-semibold tracking-tight text-slate-950">{reportSummary.aiReadiness}</p>
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">/100</p>
-                        </div>
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-900">Readiness score</p>
