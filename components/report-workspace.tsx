@@ -296,7 +296,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
 
     const imageAltIssues = images
       .filter((image) => getImageAltIssueStatus(image, altCounts) !== null)
-      .slice(0, 2);
+      .slice(0, 1);
 
     return {
       score,
@@ -870,7 +870,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
             />
 
             {reportSummary.totalImageAltIssues > 0 ? (
-              <ImageAltOpportunityCards images={reportSummary.imageAltIssues} pageUrl={payload.audit.url} maxItems={2} />
+              <ImageAltOpportunityCards images={reportSummary.imageAltIssues} pageUrl={payload.audit.url} maxItems={1} />
             ) : (
               <p className="mt-4 text-sm text-slate-600">
                 No image alt text issues were detected in this scan.
