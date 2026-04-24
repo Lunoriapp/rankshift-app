@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { ImageAltOpportunityCards } from "@/components/image-alt-opportunity-cards";
+import { InternalLinkOpportunityCards } from "@/components/internal-link-opportunity-cards";
+import { OpportunitySectionHeader } from "@/components/opportunity-section-header";
 import type { AuditFix } from "@/lib/audit-fixes";
-import type { InternalLinkOpportunity } from "@/lib/internalLinking/types";
+import type { CrawlImage } from "@/lib/crawler";
 import type {
   AuditFixStateRecord,
   AuditHistoryEntry,
@@ -80,17 +83,6 @@ function hasSchemaType(types: string[], candidates: string[]): boolean {
   return candidates.some((candidate) => lookup.has(candidate.toLowerCase()));
 }
 
-function compactUrl(value: string): string {
-  try {
-    const parsed = new URL(value);
-    const host = parsed.hostname.replace(/^www\./, "");
-    const path = parsed.pathname === "/" ? "" : parsed.pathname;
-    return `${host}${path}` || host;
-  } catch {
-    return value;
-  }
-}
-
 function getPrimaryFix(fixes: AuditFix[]): AuditFix | null {
   if (fixes.length === 0) {
     return null;
@@ -105,24 +97,6 @@ function getPrimaryFix(fixes: AuditFix[]): AuditFix | null {
   return [...fixes].sort((a, b) => severityRank[a.severity] - severityRank[b.severity])[0] ?? null;
 }
 
-function highlightAnchor(snippet: string, anchor: string) {
-  const lowerSnippet = snippet.toLowerCase();
-  const lowerAnchor = anchor.toLowerCase();
-  const index = lowerSnippet.indexOf(lowerAnchor);
-
-  if (index < 0) {
-    return snippet;
-  }
-
-  return (
-    <>
-      {snippet.slice(0, index)}
-      <mark className="rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-700">{snippet.slice(index, index + anchor.length)}</mark>
-      {snippet.slice(index + anchor.length)}
-    </>
-  );
-}
-
 function scoreStatus(score: number): { label: string; className: string } {
   if (score >= 80) {
     return { label: "Good", className: "text-emerald-600" };
@@ -133,6 +107,31 @@ function scoreStatus(score: number): { label: string; className: string } {
   }
 
   return { label: "Needs attention", className: "text-rose-600" };
+}
+
+type AltIssueStatus = "Missing alt text" | "Weak alt text" | "Duplicate alt text";
+
+function getImageAltIssueStatus(
+  image: CrawlImage,
+  duplicateAltLookup: Map<string, number>,
+): AltIssueStatus | null {
+  const alt = image.alt.trim();
+
+  if (alt.length === 0) {
+    return "Missing alt text";
+  }
+
+  const normalized = alt.toLowerCase();
+  if ((duplicateAltLookup.get(normalized) ?? 0) > 1) {
+    return "Duplicate alt text";
+  }
+
+  const weakPatterns = /^(image|photo|picture|graphic|logo|banner|img)$/i;
+  if (alt.length < 5 || weakPatterns.test(alt)) {
+    return "Weak alt text";
+  }
+
+  return null;
 }
 
 function issuesStatus(issueCount: number): { label: string; className: string } {
@@ -203,9 +202,6 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<"idle" | "copied" | "error">("idle");
   const [shareFeedback, setShareFeedback] = useState<"idle" | "shared" | "copied" | "error">("idle");
-  const [linkActionFeedback, setLinkActionFeedback] = useState<Record<string, string>>({});
-  const [expandedReasons, setExpandedReasons] = useState<Record<string, boolean>>({});
-  const [addedOpportunities, setAddedOpportunities] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -247,7 +243,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
         normalizeOpportunityUrl(opportunity.sourceUrl) === normalizeOpportunityUrl(payload.audit.url),
     );
     const scopedLinkOps = sourceMatched.length > 0 ? sourceMatched : allLinkOps;
-    const linkOps = scopedLinkOps.slice(0, 3);
+    const linkOpsPreview = scopedLinkOps.slice(0, 3);
     const primaryFix = getPrimaryFix(payload.audit.fixes);
     const aiPillar = payload.audit.score.pillars.aiVisibility;
     const aiReadiness = aiPillar
@@ -287,14 +283,31 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
       .sort((a, b) => severityRank[a.severity] - severityRank[b.severity])
       .slice(0, 3);
     const highConfidenceLinkOps = scopedLinkOps.filter((opportunity) => opportunity.confidence === "High").length;
+    const images = payload.audit.crawl.images ?? [];
+    const altCounts = new Map<string, number>();
+
+    for (const image of images) {
+      const alt = image.alt.trim().toLowerCase();
+      if (!alt) {
+        continue;
+      }
+      altCounts.set(alt, (altCounts.get(alt) ?? 0) + 1);
+    }
+
+    const imageAltIssues = images
+      .filter((image) => getImageAltIssueStatus(image, altCounts) !== null)
+      .slice(0, 2);
 
     return {
       score,
       issueCount: payload.audit.fixes.length,
       primaryFix,
-      linkOps,
+      linkOps: scopedLinkOps,
+      linkOpsPreview,
       totalLinkOps: scopedLinkOps.length,
       highConfidenceLinkOps,
+      imageAltIssues,
+      totalImageAltIssues: images.filter((image) => getImageAltIssueStatus(image, altCounts) !== null).length,
       conciseFixes: payload.audit.fixes.slice(0, 8),
       aiReadiness,
       aiSignalPassCount: aiChecks.length - aiIssues.length,
@@ -373,32 +386,6 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
 
   const copyCurrentPageUrl = async (): Promise<boolean> => {
     return copyTextToClipboard(window.location.href);
-  };
-
-  const setLinkFeedbackWithReset = (id: string, message: string) => {
-    setLinkActionFeedback((previous) => ({ ...previous, [id]: message }));
-    window.setTimeout(() => {
-      setLinkActionFeedback((previous) => {
-        const next = { ...previous };
-        delete next[id];
-        return next;
-      });
-    }, 1800);
-  };
-
-  const handleCopyAnchor = async (id: string, anchor: string) => {
-    const copied = await copyTextToClipboard(anchor);
-    setLinkFeedbackWithReset(id, copied ? "Anchor copied" : "Copy failed");
-  };
-
-  const handleCopyTargetUrl = async (id: string, targetUrl: string) => {
-    const copied = await copyTextToClipboard(targetUrl);
-    setLinkFeedbackWithReset(id, copied ? "Target URL copied" : "Copy failed");
-  };
-
-  const handleMarkLinkAdded = (id: string) => {
-    setAddedOpportunities((previous) => ({ ...previous, [id]: true }));
-    setLinkFeedbackWithReset(id, "Marked as added");
   };
 
   const handleCopyLink = async () => {
@@ -831,7 +818,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                       Unlock weekly tracking
                     </Link>
                     <Link
-                      href={`/report/${reportId}/details`}
+                      href={`/report/${reportId}/internal-links`}
                       className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
                     >
                       View all opportunities
@@ -843,144 +830,50 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
-                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
-                    <path d="M9 12a3.5 3.5 0 0 1 0-5l2.5-2.5a3.5 3.5 0 0 1 5 5L15 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                    <path d="M15 12a3.5 3.5 0 0 1 0 5l-2.5 2.5a3.5 3.5 0 1 1-5-5L9 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                  </svg>
-                </span>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">Internal linking</p>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Best internal links to add next</h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Add these links from existing page text to strengthen relevance and crawl paths.
-                  </p>
-                </div>
-              </div>
-              <Link
-                href={`/report/${reportId}/details`}
-                className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50"
-              >
-                View all opportunities &rarr;
-              </Link>
-            </div>
+            <OpportunitySectionHeader
+              icon={(
+                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
+                  <path d="M9 12a3.5 3.5 0 0 1 0-5l2.5-2.5a3.5 3.5 0 0 1 5 5L15 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M15 12a3.5 3.5 0 0 1 0 5l-2.5 2.5a3.5 3.5 0 1 1-5-5L9 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              )}
+              eyebrow="Internal linking"
+              title="Best internal links to add next"
+              helperText="Add these links from existing page text to strengthen relevance and crawl paths."
+              ctaLabel="View all opportunities"
+              ctaHref={`/report/${reportId}/internal-links`}
+            />
 
             {reportSummary.linkOps.length > 0 ? (
-              <div className="mt-5 grid gap-4">
-                {reportSummary.linkOps.map((opportunity: InternalLinkOpportunity) => (
-                  <article key={opportunity.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Link opportunity</p>
-                      {opportunity.confidence ? (
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${
-                            opportunity.confidence === "High"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : opportunity.confidence === "Medium"
-                                ? "border-amber-200 bg-amber-50 text-amber-700"
-                                : "border-slate-200 bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {opportunity.confidence} confidence
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
-                      <div className="rounded-lg border border-indigo-200 bg-white px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">1. Link this text</p>
-                        <p className="mt-2 inline-flex rounded-full border border-indigo-200 bg-[linear-gradient(135deg,#e0e7ff,#eef2ff)] px-3 py-1.5 text-sm font-semibold text-indigo-700">
-                          {opportunity.suggestedAnchor}
-                        </p>
-                      </div>
-                      <div className="hidden items-center justify-center text-slate-300 lg:flex" aria-hidden="true">
-                        &rarr;
-                      </div>
-                      <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">2. Found on this page</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">{opportunity.sourceTitle}</p>
-                        <p className="mt-1 text-xs text-slate-500 [overflow-wrap:anywhere]">{compactUrl(opportunity.sourceUrl)}</p>
-                      </div>
-                      <div className="hidden items-center justify-center text-slate-300 lg:flex" aria-hidden="true">
-                        &rarr;
-                      </div>
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50/45 px-3 py-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">3. Link it to this page</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">{opportunity.targetTitle}</p>
-                        <p className="mt-1 text-xs text-slate-500 [overflow-wrap:anywhere]">{compactUrl(opportunity.targetUrl)}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 space-y-2.5">
-                      <p className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-700">
-                        <span className="font-semibold text-slate-900">Context match:</span>{" "}
-                        {highlightAnchor(opportunity.matchedSnippet, opportunity.suggestedAnchor)}
-                      </p>
-                      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
-                        <p className="text-sm leading-6 text-slate-600">
-                          <span className="font-semibold text-slate-900">Why this works:</span>{" "}
-                          <span
-                            className={
-                              expandedReasons[opportunity.id]
-                                ? ""
-                                : "[display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden"
-                            }
-                          >
-                            {opportunity.reason}
-                          </span>
-                        </p>
-                        {opportunity.reason.length > 140 ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedReasons((previous) => ({
-                                ...previous,
-                                [opportunity.id]: !previous[opportunity.id],
-                              }))
-                            }
-                            className="mt-1 text-xs font-semibold text-indigo-700 transition hover:text-indigo-800"
-                          >
-                            {expandedReasons[opportunity.id] ? "Show less" : "Show more"}
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleCopyAnchor(opportunity.id, opportunity.suggestedAnchor)}
-                        className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Copy anchor
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleCopyTargetUrl(opportunity.id, opportunity.targetUrl)}
-                        className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Copy target URL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMarkLinkAdded(opportunity.id)}
-                        disabled={addedOpportunities[opportunity.id]}
-                        className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {addedOpportunities[opportunity.id] ? "Marked as added" : "Mark as added"}
-                      </button>
-                      {linkActionFeedback[opportunity.id] ? (
-                        <p className="text-xs font-semibold text-slate-600">{linkActionFeedback[opportunity.id]}</p>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
+              <InternalLinkOpportunityCards opportunities={reportSummary.linkOpsPreview} maxItems={3} />
             ) : (
               <p className="mt-4 text-sm text-slate-600">
                 No strong contextual links were found in this scan. Add one contextual link from related pages and rerun the audit.
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-6">
+            <OpportunitySectionHeader
+              icon={(
+                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden="true">
+                  <rect x="4.5" y="4.5" width="15" height="15" rx="3.5" stroke="currentColor" strokeWidth="1.8" />
+                  <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+                  <path d="m6.5 16 3.7-3.7a1.2 1.2 0 0 1 1.7 0L17.5 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+              eyebrow="Image alt text"
+              title="Image alt text opportunities"
+              helperText="Add clear alt text to improve accessibility, image relevance, and search visibility."
+              ctaLabel="View all image fixes"
+              ctaHref={`/report/${reportId}/images`}
+            />
+
+            {reportSummary.totalImageAltIssues > 0 ? (
+              <ImageAltOpportunityCards images={reportSummary.imageAltIssues} pageUrl={payload.audit.url} maxItems={2} />
+            ) : (
+              <p className="mt-4 text-sm text-slate-600">
+                No image alt text issues were detected in this scan.
               </p>
             )}
           </section>
