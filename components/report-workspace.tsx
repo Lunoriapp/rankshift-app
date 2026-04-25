@@ -195,6 +195,28 @@ function severityBadge(severity: AuditFix["severity"]): { label: string; classNa
   };
 }
 
+function isLikelyBrandAnchor(anchor: string, pageUrl: string): boolean {
+  const normalizedAnchor = anchor.trim().toLowerCase();
+
+  if (!normalizedAnchor) {
+    return false;
+  }
+
+  try {
+    const hostRoot = new URL(pageUrl).hostname.replace(/^www\./, "").split(".")[0] ?? "";
+    const normalizedHostRoot = hostRoot.replace(/[-_]+/g, " ").toLowerCase().trim();
+    const collapsedAnchor = normalizedAnchor.replace(/[^a-z0-9]+/g, "");
+    const collapsedHost = normalizedHostRoot.replace(/[^a-z0-9]+/g, "");
+
+    return (
+      (collapsedHost.length >= 4 && collapsedAnchor.includes(collapsedHost)) ||
+      normalizedAnchor === normalizedHostRoot
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -250,7 +272,21 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
       }
       return b.confidenceScore - a.confidenceScore;
     });
-    const linkOpsPreview = strongestLinkOps.slice(0, 3);
+    const actionablePreview = strongestLinkOps
+      .filter(
+        (opportunity) =>
+          Boolean(opportunity.suggestedAnchor) &&
+          opportunity.confidence !== "Low" &&
+          !isLikelyBrandAnchor(opportunity.suggestedAnchor ?? "", payload.audit.url),
+      )
+      .slice(0, 2);
+    const rewriteFallbackPreview =
+      actionablePreview.length === 0
+        ? strongestLinkOps
+            .filter((opportunity) => !opportunity.suggestedAnchor)
+            .slice(0, 1)
+        : [];
+    const linkOpsPreview = [...actionablePreview, ...rewriteFallbackPreview].slice(0, 3);
     const primaryFix = getPrimaryFix(payload.audit.fixes);
     const aiPillar = payload.audit.score.pillars.aiVisibility;
     const aiReadiness = aiPillar

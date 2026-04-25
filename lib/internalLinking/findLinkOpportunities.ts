@@ -141,12 +141,36 @@ function isBrandAnchor(anchor: string | null, brandCandidates: Set<string>): boo
     return true;
   }
 
+  const normalizedCollapsed = normalized.replace(/[^a-z0-9]+/g, "");
+
   return [...brandCandidates].some((brand) => {
-    if (brand.length < 4) {
+    const brandCollapsed = brand.replace(/[^a-z0-9]+/g, "");
+
+    if (brandCollapsed.length < 4) {
       return false;
     }
 
-    return normalized === brand || normalized.includes(`${brand} `) || normalized.includes(` ${brand}`);
+    if (
+      normalized === brand ||
+      normalized.includes(`${brand} `) ||
+      normalized.includes(` ${brand}`)
+    ) {
+      return true;
+    }
+
+    if (
+      normalizedCollapsed === brandCollapsed ||
+      normalizedCollapsed.startsWith(brandCollapsed) ||
+      normalizedCollapsed.includes(brandCollapsed)
+    ) {
+      return true;
+    }
+
+    const brandTokens = brand.split(" ").filter(Boolean);
+    const anchorTokens = normalized.split(" ").filter(Boolean);
+    const overlap = brandTokens.filter((token) => anchorTokens.includes(token)).length;
+
+    return overlap >= Math.max(1, brandTokens.length);
   });
 }
 
@@ -370,15 +394,62 @@ function rewriteStrengthForPair(
 ): RewriteStrength | null {
   const relatedness = topicOverlapScore(source, target);
 
-  if (relatedness >= 56) {
-    return { confidence: "High", confidenceScore: 82 };
-  }
-
-  if (relatedness >= 38) {
-    return { confidence: "Medium", confidenceScore: 68 };
+  // Rewrite-only suggestions are never high confidence.
+  if (relatedness >= 46) {
+    return { confidence: "Low", confidenceScore: 54 };
   }
 
   return null;
+}
+
+function recalibrateAnchorConfidence(
+  scored: OpportunityScore,
+  anchor: string,
+  isBrand: boolean,
+): RewriteStrength {
+  if (isBrand) {
+    return {
+      confidence: "Medium",
+      confidenceScore: Math.min(72, Math.max(60, scored.score)),
+    };
+  }
+
+  const sourceFit = scored.signals.sourceTopicAlignment;
+  const targetFit = scored.signals.targetTopicAlignment;
+  const combinedFit = sourceFit * 0.45 + targetFit * 0.55;
+  const wordCount = anchor.split(/\s+/).filter(Boolean).length;
+  const hasStrongLength = wordCount >= 2 && wordCount <= 5;
+
+  if (
+    hasStrongLength &&
+    scored.score >= 78 &&
+    targetFit >= 0.56 &&
+    sourceFit >= 0.42 &&
+    combinedFit >= 0.56
+  ) {
+    return { confidence: "High", confidenceScore: Math.max(80, scored.score) };
+  }
+
+  if (scored.score >= 60 && targetFit >= 0.28 && sourceFit >= 0.22) {
+    return { confidence: "Medium", confidenceScore: Math.min(77, Math.max(60, scored.score)) };
+  }
+
+  return { confidence: "Low", confidenceScore: Math.min(59, Math.max(46, scored.score)) };
+}
+
+function rewriteIntentKey(opportunity: InternalLinkOpportunity): string {
+  const recommendationType = opportunity.recommendationType ?? "rewrite";
+
+  try {
+    const pathname = new URL(opportunity.targetUrl).pathname
+      .toLowerCase()
+      .split("/")
+      .filter(Boolean);
+    const firstSegment = pathname[0] ?? "root";
+    return `${normalizeComparableUrl(opportunity.sourceUrl)}|${recommendationType}|${firstSegment}`;
+  } catch {
+    return `${normalizeComparableUrl(opportunity.sourceUrl)}|${recommendationType}|${normalizePhrase(opportunity.targetUrl)}`;
+  }
 }
 
 function qualityScore(
@@ -926,6 +997,11 @@ export function findLinkOpportunities(
         }
 
         seen.add(key);
+        const confidence = recalibrateAnchorConfidence(
+          winningCandidate.scored,
+          winningCandidate.anchor,
+          isBrand,
+        );
         suggestions.push({
           id: buildOpportunityId(source.url, target.url, winningCandidate.anchor),
           sourceUrl: source.url,
@@ -937,8 +1013,8 @@ export function findLinkOpportunities(
           matchedSnippet: snippet,
           placementHint: buildPlacementHint(winningCandidate.sectionLabel, winningCandidate.anchor),
           reason: buildReason(source.title, target.title, winningCandidate.anchor, winningCandidate.scored),
-          confidence: winningCandidate.scored.confidence,
-          confidenceScore: winningCandidate.scored.score,
+          confidence: confidence.confidence,
+          confidenceScore: confidence.confidenceScore,
           status: "open",
           category: "Internal linking",
           opportunityType: "contextual",
@@ -1009,8 +1085,8 @@ export function findLinkOpportunities(
                 anchorNaturalness: 0,
               },
             }),
-            confidence: rewriteStrength.confidence,
-            confidenceScore: rewriteStrength.confidenceScore,
+            confidence: "Low",
+            confidenceScore: Math.min(56, rewriteStrength.confidenceScore),
             status: "open",
             category: "Internal linking",
             opportunityType: "contextual",
@@ -1135,9 +1211,56 @@ export function findLinkOpportunities(
       return false;
     }
 
+    // Rewrite-only opportunities are always low confidence.
+    if (!hasUsableAnchor(suggestion.suggestedAnchor)) {
+      suggestion.confidence = "Low";
+      suggestion.confidenceScore = Math.min(56, suggestion.confidenceScore);
+    }
+
     return hasUsableAnchor(suggestion.suggestedAnchor) || Boolean(suggestion.rewriteSuggestion);
   });
-  const finalOpportunities = filteredByExistingLinks.slice(0, maxOpportunities);
+  const actionable: InternalLinkOpportunity[] = [];
+  const rewrites: InternalLinkOpportunity[] = [];
+
+  for (const opportunity of filteredByExistingLinks) {
+    if (hasUsableAnchor(opportunity.suggestedAnchor)) {
+      actionable.push(opportunity);
+      continue;
+    }
+
+    rewrites.push(opportunity);
+  }
+
+  const dedupedRewriteMap = new Map<string, InternalLinkOpportunity>();
+  for (const rewrite of rewrites) {
+    const key = rewriteIntentKey(rewrite);
+    const existing = dedupedRewriteMap.get(key);
+
+    if (!existing || rewrite.confidenceScore > existing.confidenceScore) {
+      dedupedRewriteMap.set(key, rewrite);
+    }
+  }
+
+  const maxRewriteCount = Math.min(2, Math.max(1, Math.floor(maxOpportunities / 12)));
+  const dedupedRewrites = [...dedupedRewriteMap.values()]
+    .sort((a, b) => b.confidenceScore - a.confidenceScore)
+    .slice(0, maxRewriteCount);
+
+  const finalOpportunities = [...actionable, ...dedupedRewrites]
+    .sort((a, b) => {
+      if (confidenceRank[a.confidence] !== confidenceRank[b.confidence]) {
+        return confidenceRank[b.confidence] - confidenceRank[a.confidence];
+      }
+
+      const aAnchorBonus = hasUsableAnchor(a.suggestedAnchor) ? 1 : 0;
+      const bAnchorBonus = hasUsableAnchor(b.suggestedAnchor) ? 1 : 0;
+      if (aAnchorBonus !== bAnchorBonus) {
+        return bAnchorBonus - aAnchorBonus;
+      }
+
+      return b.confidenceScore - a.confidenceScore;
+    })
+    .slice(0, maxOpportunities);
   diagnostics.duplicateCandidatesRemoved += Math.max(
     0,
     suggestions.length - bestBySourceTarget.size + (bestBySourceTarget.size - sorted.length),
