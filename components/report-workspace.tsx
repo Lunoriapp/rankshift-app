@@ -243,7 +243,14 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
         normalizeOpportunityUrl(opportunity.sourceUrl) === normalizeOpportunityUrl(payload.audit.url),
     );
     const scopedLinkOps = sourceMatched.length > 0 ? sourceMatched : allLinkOps;
-    const linkOpsPreview = scopedLinkOps.slice(0, 3);
+    const confidenceRank = { High: 3, Medium: 2, Low: 1 } as const;
+    const strongestLinkOps = [...scopedLinkOps].sort((a, b) => {
+      if (confidenceRank[a.confidence] !== confidenceRank[b.confidence]) {
+        return confidenceRank[b.confidence] - confidenceRank[a.confidence];
+      }
+      return b.confidenceScore - a.confidenceScore;
+    });
+    const linkOpsPreview = strongestLinkOps.slice(0, 3);
     const primaryFix = getPrimaryFix(payload.audit.fixes);
     const aiPillar = payload.audit.score.pillars.aiVisibility;
     const aiReadiness = aiPillar

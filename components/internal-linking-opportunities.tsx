@@ -88,14 +88,24 @@ export function InternalLinkingOpportunities({
   initialVisibleCount = 5,
 }: InternalLinkingOpportunitiesProps) {
   const [showAll, setShowAll] = useState(false);
+  const [showLowConfidence, setShowLowConfidence] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const sortedOpportunities = useMemo(
     () => [...opportunities].sort((a, b) => b.confidenceScore - a.confidenceScore),
     [opportunities],
   );
-  const visibleOpportunities = showAll
+  const lowConfidenceOpportunities = sortedOpportunities.filter(
+    (opportunity) => opportunity.confidence === "Low",
+  );
+  const defaultConfidenceOpportunities = sortedOpportunities.filter(
+    (opportunity) => opportunity.confidence !== "Low",
+  );
+  const confidenceScopedOpportunities = showLowConfidence
     ? sortedOpportunities
-    : sortedOpportunities.slice(0, Math.max(3, initialVisibleCount));
+    : defaultConfidenceOpportunities;
+  const visibleOpportunities = showAll
+    ? confidenceScopedOpportunities
+    : confidenceScopedOpportunities.slice(0, Math.max(3, initialVisibleCount));
   const completedCount = opportunities.filter((opportunity) =>
     completedOpportunityIds.includes(opportunity.id),
   ).length;
@@ -177,6 +187,17 @@ export function InternalLinkingOpportunities({
             className="text-sm font-semibold text-sky-700 transition hover:text-sky-600 dark:text-sky-300 dark:hover:text-sky-200"
           >
             {showAll ? "Show top suggestions" : "View all link suggestions"}
+          </button>
+        ) : null}
+        {lowConfidenceOpportunities.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setShowLowConfidence((current) => !current)}
+            className="text-sm font-semibold text-slate-600 transition hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100"
+          >
+            {showLowConfidence
+              ? "Hide low confidence suggestions"
+              : `Show low confidence suggestions (${lowConfidenceOpportunities.length})`}
           </button>
         ) : null}
       </div>

@@ -18,11 +18,31 @@ export interface AnchorSuggestion {
 interface SuggestAnchorTextOptions {
   preferredPhrases?: TopicPhraseCandidate[];
   blockedAnchors?: Set<string> | string[];
+  brandCandidates?: Set<string> | string[];
 }
 
 interface RankedAnchorCandidate extends AnchorSuggestion {
   score: number;
 }
+
+const SERVICE_TOPIC_TERMS = new Set([
+  "agency",
+  "services",
+  "service",
+  "specialists",
+  "specialist",
+  "lawyers",
+  "lawyer",
+  "consultants",
+  "consultant",
+  "advice",
+  "support",
+  "recruitment",
+  "seo",
+  "family law",
+  "audit",
+  "marketing",
+]);
 
 function cleanAnchor(value: string): string {
   return normalizeWhitespace(value.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, ""));
@@ -127,6 +147,56 @@ function naturalLengthScore(anchor: string): number {
   return 0.45;
 }
 
+function serviceTopicTermBoost(anchor: string): number {
+  const normalized = normalizeWhitespace(anchor).toLowerCase();
+  let matches = 0;
+
+  for (const term of SERVICE_TOPIC_TERMS) {
+    if (normalized.includes(term)) {
+      matches += 1;
+    }
+  }
+
+  if (matches >= 2) {
+    return 1;
+  }
+
+  if (matches === 1) {
+    return 0.76;
+  }
+
+  return 0.35;
+}
+
+function isBrandLikeAnchor(anchor: string, brandCandidates: Set<string>): boolean {
+  const normalized = normalizeWhitespace(anchor).toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (brandCandidates.has(normalized)) {
+    return true;
+  }
+
+  return [...brandCandidates].some((brand) => {
+    if (brand.length < 4) {
+      return false;
+    }
+
+    return normalized === brand || normalized.startsWith(`${brand} `) || normalized.endsWith(` ${brand}`);
+  });
+}
+
+function isHomepageOrAboutTarget(targetUrl: string): boolean {
+  try {
+    const pathname = new URL(targetUrl).pathname.toLowerCase();
+    return pathname === "/" || /\/about(?:[-_/]|$)/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
 function isVagueAnchor(anchor: string): boolean {
   const normalized = normalizeWhitespace(anchor).toLowerCase();
 
@@ -143,9 +213,11 @@ function isVagueAnchor(anchor: string): boolean {
 
 function rankCandidate(
   candidate: AnchorSuggestion,
+  target: SitePageTopicProfile,
   titleTopicTokens: Set<string>,
   h1TopicTokens: Set<string>,
   primaryTopicTokens: Set<string>,
+  brandCandidates: Set<string>,
 ): RankedAnchorCandidate {
   const matchScore =
     candidate.matchType === "exact" ? 1 : candidate.matchType === "close" ? 0.82 : 0.45;
@@ -153,16 +225,24 @@ function rankCandidate(
   const h1Affinity = overlapRatio(candidate.anchor, h1TopicTokens);
   const primaryTopicAffinity = overlapRatio(candidate.anchor, primaryTopicTokens);
   const lengthScore = naturalLengthScore(candidate.anchor);
+  const serviceBoost = serviceTopicTermBoost(candidate.anchor);
+  const brandPenalty = isBrandLikeAnchor(candidate.anchor, brandCandidates)
+    ? isHomepageOrAboutTarget(target.url)
+      ? 0.42
+      : 1
+    : 0;
 
   return {
     ...candidate,
     score:
-      matchScore * 0.35 +
-      candidate.phraseWeight * 0.2 +
-      titleAffinity * 0.25 +
+      matchScore * 0.28 +
+      candidate.phraseWeight * 0.18 +
+      titleAffinity * 0.22 +
       h1Affinity * 0.12 +
-      primaryTopicAffinity * 0.05 +
-      lengthScore * 0.03,
+      primaryTopicAffinity * 0.09 +
+      serviceBoost * 0.11 +
+      lengthScore * 0.08 -
+      brandPenalty * 0.24,
   };
 }
 
@@ -216,6 +296,10 @@ export function suggestAnchorText(
     options.blockedAnchors instanceof Set
       ? options.blockedAnchors
       : new Set((options.blockedAnchors ?? []).map((value) => normalizeAnchorForCompare(value)));
+  const brandCandidates =
+    options.brandCandidates instanceof Set
+      ? options.brandCandidates
+      : new Set((options.brandCandidates ?? []).map((value) => normalizeAnchorForCompare(value)));
   const candidates: AnchorSuggestion[] = [];
   const targetSignalText = `${target.title} ${target.h1} ${target.primaryTopic}`;
   const preferredPhrases = (options.preferredPhrases ?? [])
@@ -320,7 +404,16 @@ export function suggestAnchorText(
 
   if (candidates.length > 0) {
     const ranked = candidates
-      .map((candidate) => rankCandidate(candidate, titleTopicTokens, h1TopicTokens, primaryTopicTokens))
+      .map((candidate) =>
+        rankCandidate(
+          candidate,
+          target,
+          titleTopicTokens,
+          h1TopicTokens,
+          primaryTopicTokens,
+          brandCandidates,
+        ),
+      )
       .sort((a, b) => b.score - a.score || b.phraseWeight - a.phraseWeight || b.anchor.length - a.anchor.length);
 
     return {

@@ -17,6 +17,11 @@ interface FindLinkOpportunitiesOptions {
   sourceUrl?: string;
 }
 
+interface RewriteStrength {
+  confidence: InternalLinkOpportunity["confidence"];
+  confidenceScore: number;
+}
+
 function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string | null): string {
   const base = `${sourceUrl}|${targetUrl}|${anchor || "rewrite"}`
     .toLowerCase()
@@ -29,6 +34,86 @@ function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string
 
 function normalizeComparableUrl(url: string): string {
   return normalizeUrlForCompare(url) ?? url.trim().toLowerCase();
+}
+
+function inferBrandCandidates(pages: SitePageTopicProfile[]): Set<string> {
+  const candidates = new Set<string>();
+
+  const byPathDepth = [...pages].sort((a, b) => {
+    const aDepth = new URL(a.url).pathname.split("/").filter(Boolean).length;
+    const bDepth = new URL(b.url).pathname.split("/").filter(Boolean).length;
+    return aDepth - bDepth;
+  });
+  const homepage = byPathDepth.find((page) => new URL(page.url).pathname === "/") ?? byPathDepth[0];
+
+  const pushCandidate = (value: string) => {
+    const normalized = normalizeAnchorTextForCompare(value);
+
+    if (!normalized || normalized.length < 3 || normalized.split(" ").length > 5) {
+      return;
+    }
+
+    candidates.add(normalized);
+  };
+
+  if (homepage) {
+    const homepageTitleLead = homepage.title.split(/[|:-]/)[0] ?? homepage.title;
+    pushCandidate(homepageTitleLead);
+    pushCandidate(homepage.h1);
+    pushCandidate(homepage.primaryTopic);
+  }
+
+  if (pages[0]) {
+    try {
+      const host = new URL(pages[0].url).hostname.replace(/^www\./i, "");
+      const rootLabel = host.split(".")[0]?.replace(/[-_]+/g, " ") ?? "";
+      pushCandidate(rootLabel);
+    } catch {
+      // ignore bad url
+    }
+  }
+
+  return candidates;
+}
+
+function isAboutTarget(url: string): boolean {
+  try {
+    return /\/about(?:[-_/]|$)/i.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isHomepageTarget(url: string): boolean {
+  try {
+    return new URL(url).pathname === "/";
+  } catch {
+    return false;
+  }
+}
+
+function isBrandAnchor(anchor: string | null, brandCandidates: Set<string>): boolean {
+  if (!anchor) {
+    return false;
+  }
+
+  const normalized = normalizeAnchorTextForCompare(anchor);
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (brandCandidates.has(normalized)) {
+    return true;
+  }
+
+  return [...brandCandidates].some((brand) => {
+    if (brand.length < 4) {
+      return false;
+    }
+
+    return normalized === brand || normalized.includes(`${brand} `) || normalized.includes(` ${brand}`);
+  });
 }
 
 function sourceAlreadyLinksToTarget(
@@ -231,6 +316,41 @@ function hasUsableAnchor(value: string | null | undefined): value is string {
   return normalized.length > 0 && normalized !== "related page link";
 }
 
+function rewriteStrengthForPair(
+  source: SitePageTopicProfile,
+  target: SitePageTopicProfile,
+): RewriteStrength | null {
+  const relatedness = topicOverlapScore(source, target);
+
+  if (relatedness >= 56) {
+    return { confidence: "High", confidenceScore: 82 };
+  }
+
+  if (relatedness >= 38) {
+    return { confidence: "Medium", confidenceScore: 68 };
+  }
+
+  return null;
+}
+
+function qualityScore(
+  opportunity: InternalLinkOpportunity,
+  source: SitePageTopicProfile | undefined,
+  target: SitePageTopicProfile | undefined,
+  brandCandidates: Set<string>,
+): number {
+  const base = opportunity.confidenceScore;
+  const anchor = opportunity.suggestedAnchor;
+  const nonBrandBonus =
+    hasUsableAnchor(anchor) && !isBrandAnchor(anchor, brandCandidates) ? 10 : 0;
+  const topicalAnchorBonus = hasUsableAnchor(anchor) ? Math.min(12, anchorAffinity(anchor, opportunity.targetUrl, opportunity.targetTitle) * 4) : 0;
+  const sourceTargetThemeBonus =
+    source && target ? Math.min(12, Math.round(topicOverlapScore(source, target) * 0.18)) : 0;
+  const rewritePenalty = hasUsableAnchor(anchor) ? 0 : -8;
+
+  return base + nonBrandBonus + topicalAnchorBonus + sourceTargetThemeBonus + rewritePenalty;
+}
+
 function topicOverlapScore(source: SitePageTopicProfile, target: SitePageTopicProfile): number {
   const sourceTokens = new Set<string>([
     ...tokenize(source.primaryTopic),
@@ -314,26 +434,37 @@ function buildRelatedCandidates(
   const selected = (aboveThreshold.length > 0 ? aboveThreshold : ranked).slice(0, 3);
 
   return selected
-    .map(({ target, score }) => ({
-      id: buildOpportunityId(source.url, target.url, null),
-      sourceUrl: source.url,
-      sourceTitle: source.title,
-      targetUrl: target.url,
-      targetTitle: target.title,
-      suggestedAnchor: null,
-      rewriteSuggestion: buildRewriteSuggestion(source, target),
-      matchedSnippet: "No strong inline anchor was found in body text.",
-      placementHint:
-        "No strong anchor found. Suggested rewrite available.",
-      reason:
-        "No strong unlinked anchor phrase was found in current copy. A rewrite is suggested to add a natural contextual link.",
-      confidence: score >= 56 ? "Medium" : "Low",
-      confidenceScore: score >= 56 ? 60 : 48,
-      status: "open",
-      category: "Internal linking",
-      opportunityType: "related",
-      recommendationType: inferRecommendationType(source, target),
-    }));
+    .map(({ target }) => {
+      const rewriteStrength = rewriteStrengthForPair(source, target);
+
+      if (!rewriteStrength) {
+        return null;
+      }
+
+      const candidate: InternalLinkOpportunity = {
+        id: buildOpportunityId(source.url, target.url, null),
+        sourceUrl: source.url,
+        sourceTitle: source.title,
+        targetUrl: target.url,
+        targetTitle: target.title,
+        suggestedAnchor: null,
+        rewriteSuggestion: buildRewriteSuggestion(source, target),
+        matchedSnippet: "No strong inline anchor was found in body text.",
+        placementHint:
+          "No strong anchor found. Suggested rewrite available.",
+        reason:
+          "No strong unlinked anchor phrase was found in current copy. A rewrite is suggested to add a natural contextual link.",
+        confidence: rewriteStrength.confidence,
+        confidenceScore: rewriteStrength.confidenceScore,
+        status: "open",
+        category: "Internal linking",
+        opportunityType: "related",
+        recommendationType: inferRecommendationType(source, target),
+      };
+
+      return candidate;
+    })
+    .filter((candidate): candidate is InternalLinkOpportunity => candidate !== null);
 }
 
 function buildDebugEntry(
@@ -376,10 +507,12 @@ export function findLinkOpportunities(
   options: FindLinkOpportunitiesOptions = {},
 ): InternalLinkingReport {
   const topicProfiles = analyseSiteTopics(pages);
+  const brandCandidates = inferBrandCandidates(topicProfiles);
   const sourceUrlFilter = options.sourceUrl ? normalizeComparableUrl(options.sourceUrl) : null;
   const debug: InternalLinkDebugEntry[] = [];
   const suggestions: InternalLinkOpportunity[] = [];
   const seen = new Set<string>();
+  let brandAnchorSuggestionsAccepted = 0;
 
   const diagnostics: NonNullable<InternalLinkingReport["diagnostics"]> = {
     pagesInput: pages.length,
@@ -501,6 +634,7 @@ export function findLinkOpportunities(
         const suggestion = suggestAnchorText(context.text, target, {
           preferredPhrases: preferredSourcePhrases,
           blockedAnchors: blockedSourceAnchors,
+          brandCandidates,
         });
 
         if (!suggestion) {
@@ -593,6 +727,13 @@ export function findLinkOpportunities(
           target.url,
           winningCandidate.anchor,
         );
+        const isBrand = isBrandAnchor(winningCandidate.anchor, brandCandidates);
+        const brandAnchorAllowed =
+          isBrand &&
+          (isHomepageTarget(target.url) || isAboutTarget(target.url)) &&
+          winningCandidate.scored.confidence === "High" &&
+          !alreadyLinkedToTarget &&
+          brandAnchorSuggestionsAccepted === 0;
 
         if (seen.has(key)) {
           diagnostics.duplicateCandidatesRemoved += 1;
@@ -632,6 +773,25 @@ export function findLinkOpportunities(
           continue;
         }
 
+        if (isBrand && !brandAnchorAllowed) {
+          diagnostics.droppedByFilter.anchorMatchOrSimilarity += 1;
+          targetEvaluations.push({
+            targetUrl: target.url,
+            targetTitle: target.title,
+            candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
+            candidateAnchorPhrases: candidateAnchorPhrases
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 12),
+            existingContextualBodyLink: alreadyLinkedToTarget,
+            matchedSnippets: [snippet],
+            decision: "rejected",
+            reasons: [
+              "Rejected brand anchor because it did not pass homepage/about/high-confidence non-duplicate policy.",
+            ],
+          });
+          continue;
+        }
+
         seen.add(key);
         suggestions.push({
           id: buildOpportunityId(source.url, target.url, winningCandidate.anchor),
@@ -650,6 +810,9 @@ export function findLinkOpportunities(
           category: "Internal linking",
           opportunityType: "contextual",
         });
+        if (isBrand) {
+          brandAnchorSuggestionsAccepted += 1;
+        }
 
         sourceOpportunities += 1;
         diagnostics.rawAcceptedCandidates += 1;
@@ -673,9 +836,14 @@ export function findLinkOpportunities(
 
       if (!matched) {
         const rewriteSuggestion = buildRewriteSuggestion(source, target);
+        const rewriteStrength = rewriteStrengthForPair(source, target);
         const rewriteKey = `${source.url}|${target.url}|rewrite`;
 
-        if (!seen.has(rewriteKey) && !sourceAlreadyLinksToTarget(source, target.url)) {
+        if (
+          rewriteStrength &&
+          !seen.has(rewriteKey) &&
+          !sourceAlreadyLinksToTarget(source, target.url)
+        ) {
           seen.add(rewriteKey);
           suggestions.push({
             id: buildOpportunityId(source.url, target.url, null),
@@ -690,19 +858,19 @@ export function findLinkOpportunities(
               "No strong unlinked anchor phrase was found in source copy.",
             placementHint: "No strong anchor found. Suggested rewrite available.",
             reason: buildReason(source.title, target.title, null, {
-              score: 48,
-              confidence: "Low",
+              score: rewriteStrength.confidenceScore,
+              confidence: rewriteStrength.confidence,
               signals: {
-                sourceTopicAlignment: 0.45,
-                targetTopicAlignment: 0.45,
-                sourceTargetAlignment: 0.45,
+                sourceTopicAlignment: 0.62,
+                targetTopicAlignment: 0.62,
+                sourceTargetAlignment: 0.64,
                 sectionRelevance: 0.7,
                 topOfPageWeight: 0.7,
                 anchorNaturalness: 0,
               },
             }),
-            confidence: "Low",
-            confidenceScore: 48,
+            confidence: rewriteStrength.confidence,
+            confidenceScore: rewriteStrength.confidenceScore,
             status: "open",
             category: "Internal linking",
             opportunityType: "contextual",
@@ -774,12 +942,35 @@ export function findLinkOpportunities(
     }
   }
 
-  const sorted = [...bestBySourceAnchor.values()].sort(
-    (a, b) => b.confidenceScore - a.confidenceScore,
-  );
   const sourceProfileByUrl = new Map(
     topicProfiles.map((profile) => [normalizeComparableUrl(profile.url), profile]),
   );
+  const targetProfileByUrl = new Map(
+    topicProfiles.map((profile) => [normalizeComparableUrl(profile.url), profile]),
+  );
+  const confidenceRank: Record<InternalLinkOpportunity["confidence"], number> = {
+    High: 3,
+    Medium: 2,
+    Low: 1,
+  };
+  const sorted = [...bestBySourceAnchor.values()].sort((a, b) => {
+    const sourceA = sourceProfileByUrl.get(normalizeComparableUrl(a.sourceUrl));
+    const targetA = targetProfileByUrl.get(normalizeComparableUrl(a.targetUrl));
+    const sourceB = sourceProfileByUrl.get(normalizeComparableUrl(b.sourceUrl));
+    const targetB = targetProfileByUrl.get(normalizeComparableUrl(b.targetUrl));
+    const qualityA = qualityScore(a, sourceA, targetA, brandCandidates);
+    const qualityB = qualityScore(b, sourceB, targetB, brandCandidates);
+
+    if (qualityA !== qualityB) {
+      return qualityB - qualityA;
+    }
+
+    if (confidenceRank[a.confidence] !== confidenceRank[b.confidence]) {
+      return confidenceRank[b.confidence] - confidenceRank[a.confidence];
+    }
+
+    return b.confidenceScore - a.confidenceScore;
+  });
   const filteredByExistingLinks = sorted.filter((suggestion) => {
     const sourceProfile = sourceProfileByUrl.get(normalizeComparableUrl(suggestion.sourceUrl));
 

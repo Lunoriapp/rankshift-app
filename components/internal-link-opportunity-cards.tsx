@@ -54,12 +54,23 @@ export function InternalLinkOpportunityCards({
   const [linkActionFeedback, setLinkActionFeedback] = useState<Record<string, string>>({});
   const [expandedReasons, setExpandedReasons] = useState<Record<string, boolean>>({});
   const [addedOpportunities, setAddedOpportunities] = useState<Record<string, boolean>>({});
+  const [showLowConfidence, setShowLowConfidence] = useState(false);
 
-  const sorted = useMemo(
-    () => [...opportunities].sort((a, b) => b.confidenceScore - a.confidenceScore),
-    [opportunities],
-  );
-  const visible = typeof maxItems === "number" ? sorted.slice(0, maxItems) : sorted;
+  const sorted = useMemo(() => {
+    const confidenceRank = { High: 3, Medium: 2, Low: 1 } as const;
+
+    return [...opportunities].sort((a, b) => {
+      if (confidenceRank[a.confidence] !== confidenceRank[b.confidence]) {
+        return confidenceRank[b.confidence] - confidenceRank[a.confidence];
+      }
+
+      return b.confidenceScore - a.confidenceScore;
+    });
+  }, [opportunities]);
+  const lowConfidence = sorted.filter((item) => item.confidence === "Low");
+  const primary = sorted.filter((item) => item.confidence !== "Low");
+  const visiblePool = showLowConfidence ? [...primary, ...lowConfidence] : primary;
+  const visible = typeof maxItems === "number" ? visiblePool.slice(0, maxItems) : visiblePool;
 
   const copyTextToClipboard = async (value: string): Promise<boolean> => {
     try {
@@ -207,13 +218,23 @@ export function InternalLinkOpportunityCards({
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleCopyAnchor(opportunity.id, opportunity.suggestedAnchor)}
-              className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Copy anchor
-            </button>
+            {opportunity.suggestedAnchor ? (
+              <button
+                type="button"
+                onClick={() => void handleCopyAnchor(opportunity.id, opportunity.suggestedAnchor)}
+                className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Copy anchor
+              </button>
+            ) : opportunity.rewriteSuggestion ? (
+              <button
+                type="button"
+                onClick={() => void handleCopyAnchor(opportunity.id, opportunity.rewriteSuggestion ?? null)}
+                className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Copy rewrite
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => void handleCopyTargetUrl(opportunity.id, opportunity.targetUrl)}
@@ -235,6 +256,19 @@ export function InternalLinkOpportunityCards({
           </div>
         </article>
       ))}
+      {lowConfidence.length > 0 && typeof maxItems !== "number" ? (
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setShowLowConfidence((current) => !current)}
+            className="text-xs font-semibold text-slate-600 transition hover:text-slate-800"
+          >
+            {showLowConfidence
+              ? "Hide low confidence suggestions"
+              : `Show low confidence suggestions (${lowConfidence.length})`}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
