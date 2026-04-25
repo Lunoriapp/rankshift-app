@@ -162,18 +162,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             ),
         ),
       ];
-      const bestByAnchor = new Map<string, (typeof mergedRaw)[number]>();
+      const bestByOpportunity = new Map<string, (typeof mergedRaw)[number]>();
 
       for (const entry of mergedRaw) {
         const anchorKey = (entry.suggestedAnchor ?? entry.rewriteSuggestion ?? "rewrite").toLowerCase();
-        const existing = bestByAnchor.get(anchorKey);
+        const opportunityKey = `${entry.sourceUrl}|${entry.targetUrl}|${anchorKey}`;
+        const existing = bestByOpportunity.get(opportunityKey);
 
         if (!existing || entry.confidenceScore > existing.confidenceScore) {
-          bestByAnchor.set(anchorKey, entry);
+          bestByOpportunity.set(opportunityKey, entry);
         }
       }
 
-      const merged = [...bestByAnchor.values()]
+      const merged = [...bestByOpportunity.values()]
         .sort((a, b) => b.confidenceScore - a.confidenceScore)
         .slice(0, 48);
 

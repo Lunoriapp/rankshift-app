@@ -230,8 +230,8 @@ function rankCandidate(
   const serviceBoost = serviceTopicTermBoost(candidate.anchor);
   const brandPenalty = isBrandLikeAnchor(candidate.anchor, brandCandidates)
     ? isHomepageOrAboutTarget(target.url)
-      ? 0.42
-      : 1
+      ? 0.55
+      : 1.45
     : 0;
 
   return {
@@ -244,7 +244,7 @@ function rankCandidate(
       primaryTopicAffinity * 0.09 +
       serviceBoost * 0.11 +
       lengthScore * 0.08 -
-      brandPenalty * 0.24,
+      brandPenalty * 0.34,
   };
 }
 
@@ -309,9 +309,15 @@ export function suggestAnchorText(
   const preferredPhrases = (options.preferredPhrases ?? [])
     .filter((phrase) => !isWeakTopicPhrase(phrase.phrase))
     .filter((phrase) => phraseWordOverlap(targetSignalText, phrase.phrase) >= 0.55)
+    .filter((phrase) => {
+      const words = normalizeWhitespace(phrase.phrase).split(/\s+/).filter(Boolean).length;
+      return words >= 2 && words <= 5;
+    })
+    .filter((phrase) => !isBrandLikeAnchor(phrase.phrase, brandCandidates))
     .map((phrase) => ({
       ...phrase,
-      weight: Math.max(0.92, phrase.weight),
+      // Keep source phrase hints lightweight so topical in-sentence noun phrases can win.
+      weight: Math.min(0.72, Math.max(0.58, phrase.weight * 0.75)),
     }));
   const phrasePool = [...preferredPhrases, ...target.topicPhrases];
   const seenPhrases = new Set<string>();
@@ -345,6 +351,10 @@ export function suggestAnchorText(
       }
 
       if (blockedAnchors.has(normalizeAnchorForCompare(anchor))) {
+        continue;
+      }
+
+      if (isBrandLikeAnchor(anchor, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
         continue;
       }
 
@@ -384,6 +394,10 @@ export function suggestAnchorText(
         continue;
       }
 
+      if (isBrandLikeAnchor(anchor, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
+        continue;
+      }
+
       candidates.push({
         anchor,
         matchType: "close",
@@ -395,6 +409,10 @@ export function suggestAnchorText(
 
   for (const nounPhrase of extractNounPhraseCandidates(sourceText, targetTopicTokens)) {
     if (blockedAnchors.has(normalizeAnchorForCompare(nounPhrase))) {
+      continue;
+    }
+
+    if (isBrandLikeAnchor(nounPhrase, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
       continue;
     }
 

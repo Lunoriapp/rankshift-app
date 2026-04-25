@@ -150,6 +150,20 @@ function isBrandAnchor(anchor: string | null, brandCandidates: Set<string>): boo
   });
 }
 
+function isPreferredSourcePhraseCandidate(
+  phrase: string,
+  brandCandidates: Set<string>,
+): boolean {
+  const normalized = normalizeAnchorTextForCompare(phrase);
+  const wordCount = normalized.split(" ").filter(Boolean).length;
+
+  if (!normalized || wordCount < 2 || wordCount > 5) {
+    return false;
+  }
+
+  return !isBrandAnchor(phrase, brandCandidates);
+}
+
 function sourceAlreadyLinksToTarget(
   source: SitePageTopicProfile,
   targetUrl: string,
@@ -598,12 +612,17 @@ export function findLinkOpportunities(
     const preferredSourcePhrases = [
       ...source.topicPhrases
         .filter((phrase) => phrase.source === "title" || phrase.source === "h1")
+        .filter((phrase) => isPreferredSourcePhraseCandidate(phrase.phrase, brandCandidates))
         .slice(0, 10),
-      {
-        phrase: source.primaryTopic,
-        source: "h1" as const,
-        weight: 1,
-      },
+      ...(isPreferredSourcePhraseCandidate(source.primaryTopic, brandCandidates)
+        ? [
+            {
+              phrase: source.primaryTopic,
+              source: "h1" as const,
+              weight: 0.7,
+            },
+          ]
+        : []),
     ];
 
     for (const target of topicProfiles) {

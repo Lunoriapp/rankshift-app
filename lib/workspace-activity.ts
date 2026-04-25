@@ -100,11 +100,19 @@ function confidenceToNumber(confidence: InternalLinkOpportunity["confidence"]): 
   return 48;
 }
 
+const REWRITE_ANCHOR_PREFIX = "__rewrite__:";
+
 function getPersistedAnchorText(opportunity: InternalLinkOpportunity): string {
   const anchor = opportunity.suggestedAnchor?.trim() ?? "";
 
   if (anchor.length > 0) {
     return anchor;
+  }
+
+  const rewriteSuggestion = opportunity.rewriteSuggestion?.trim() ?? "";
+
+  if (rewriteSuggestion.length > 0) {
+    return `${REWRITE_ANCHOR_PREFIX}${rewriteSuggestion}`;
   }
 
   return "No strong anchor found";
@@ -223,8 +231,15 @@ async function mapInternalLinkToInsert(input: {
 }
 
 function mapInternalLinkRowToOpportunity(row: InternalLinkOpportunityRow): InternalLinkOpportunity {
-  const isRewriteOnlyAnchor =
-    row.suggested_anchor.trim().toLowerCase() === "no strong anchor found";
+  const normalizedStoredAnchor = row.suggested_anchor.trim();
+  const isLegacyRewriteOnlyAnchor =
+    normalizedStoredAnchor.toLowerCase() === "no strong anchor found";
+  const isRewritePrefixedAnchor = normalizedStoredAnchor.startsWith(REWRITE_ANCHOR_PREFIX);
+  const rewriteSuggestion = isRewritePrefixedAnchor
+    ? normalizedStoredAnchor.slice(REWRITE_ANCHOR_PREFIX.length).trim()
+    : isLegacyRewriteOnlyAnchor
+      ? "Rewrite sentence to include a natural internal link to this page"
+      : null;
 
   return {
     id: row.external_key,
@@ -232,10 +247,8 @@ function mapInternalLinkRowToOpportunity(row: InternalLinkOpportunityRow): Inter
     sourceTitle: row.source_title,
     targetUrl: row.target_url,
     targetTitle: row.target_title,
-    suggestedAnchor: isRewriteOnlyAnchor ? null : row.suggested_anchor,
-    rewriteSuggestion: isRewriteOnlyAnchor
-      ? "Rewrite sentence to include a natural internal link to this page"
-      : null,
+    suggestedAnchor: rewriteSuggestion ? null : row.suggested_anchor,
+    rewriteSuggestion,
     matchedSnippet: row.matched_snippet,
     placementHint: row.placement_hint,
     reason: row.reason,
