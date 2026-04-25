@@ -104,7 +104,8 @@ const existingInternalLinks: CrawlInternalLink[] = [
   {
     href: "https://www.rankshift.ai/features/page-audits",
     text: "page audits",
-    normalizedUrl: "https://www.rankshift.ai/features/page-audits",
+    resolvedUrl: "https://www.rankshift.ai/features/page-audits",
+    normalizedUrl: "rankshift.ai/features/page-audits",
   },
 ];
 

@@ -13,6 +13,43 @@ import {
   titleParts,
   topTermsFromBody,
 } from "./shared";
+import { normalizeAnchorTextForCompare, normalizeUrlForCompare } from "./urlCompare";
+
+function dedupeComparableStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+
+  for (const value of values) {
+    if (!value || seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    deduped.push(value);
+  }
+
+  return deduped;
+}
+
+function dedupeInternalLinkEntries(
+  entries: SitePageTopicProfile["existingInternalLinkEntries"],
+): SitePageTopicProfile["existingInternalLinkEntries"] {
+  const seen = new Set<string>();
+  const deduped: SitePageTopicProfile["existingInternalLinkEntries"] = [];
+
+  for (const entry of entries) {
+    const key = `${entry.normalizedUrl}|${entry.normalizedAnchorText}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(entry);
+  }
+
+  return deduped;
+}
 
 function choosePrimaryTopic(page: SitePageSnapshot): string {
   const candidates = [page.h1, ...titleParts(page.title), ...page.h2s]
@@ -125,7 +162,16 @@ export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfi
 
   for (const page of pages) {
     for (const link of page.existingInternalLinks) {
-      inboundCounts.set(link.normalizedUrl, (inboundCounts.get(link.normalizedUrl) ?? 0) + 1);
+      const normalizedTarget = normalizeUrlForCompare(
+        link.normalizedUrl || link.resolvedUrl || link.href,
+        page.url,
+      );
+
+      if (!normalizedTarget) {
+        continue;
+      }
+
+      inboundCounts.set(normalizedTarget, (inboundCounts.get(normalizedTarget) ?? 0) + 1);
     }
   }
 
@@ -137,25 +183,59 @@ export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfi
         page.statusCode < 400 &&
         page.bodyText.length >= 80,
     )
-    .map((page) => ({
-      url: page.url,
-      canonicalUrl: page.canonical,
-      title: buildPageDisplayTitle(page),
-      h1: page.h1,
-      h2s: page.h2s,
-      primaryTopic: choosePrimaryTopic(page),
-      topicPhrases: buildTopicPhrases(page),
-      keywords: dedupeStrings(topTermsFromBody(page.bodyText, 12)),
-      bodyContexts: buildBodyContexts(page),
-      contentDebug: page.contentDebug,
-      existingInternalLinkTargets: dedupeStrings(
-        page.existingInternalLinks.map((link) => link.normalizedUrl),
-      ),
-      inboundInternalLinkCount: inboundCounts.get(page.url) ?? 0,
-      outboundInternalLinkCount: page.existingInternalLinks.length,
-      commerciallyImportant: isCommercialPage(page),
-      indexable: page.indexable,
-    }));
+    .map((page) => {
+      const comparablePageUrl = normalizeUrlForCompare(page.url);
+      const existingInternalLinkEntries = dedupeInternalLinkEntries(
+        page.existingInternalLinks
+          .map((link) => {
+            const normalizedTarget = normalizeUrlForCompare(
+              link.normalizedUrl || link.resolvedUrl || link.href,
+              page.url,
+            );
+
+            if (!normalizedTarget) {
+              return null;
+            }
+
+            const anchorText = normalizeWhitespace(link.text);
+
+            return {
+              normalizedUrl: normalizedTarget,
+              anchorText,
+              normalizedAnchorText: normalizeAnchorTextForCompare(anchorText),
+            };
+          })
+          .filter(
+            (
+              entry,
+            ): entry is SitePageTopicProfile["existingInternalLinkEntries"][number] =>
+              entry !== null,
+          ),
+      );
+
+      return {
+        url: page.url,
+        canonicalUrl: page.canonical,
+        title: buildPageDisplayTitle(page),
+        h1: page.h1,
+        h2s: page.h2s,
+        primaryTopic: choosePrimaryTopic(page),
+        topicPhrases: buildTopicPhrases(page),
+        keywords: dedupeStrings(topTermsFromBody(page.bodyText, 12)),
+        bodyContexts: buildBodyContexts(page),
+        contentDebug: page.contentDebug,
+        existingInternalLinkTargets: dedupeComparableStrings(
+          existingInternalLinkEntries.map((entry) => entry.normalizedUrl),
+        ),
+        existingInternalLinkEntries,
+        inboundInternalLinkCount: comparablePageUrl
+          ? (inboundCounts.get(comparablePageUrl) ?? 0)
+          : 0,
+        outboundInternalLinkCount: page.existingInternalLinks.length,
+        commerciallyImportant: isCommercialPage(page),
+        indexable: page.indexable,
+      };
+    });
 
   const phrasePageFrequency = new Map<string, number>();
 

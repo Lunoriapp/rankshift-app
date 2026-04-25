@@ -28,6 +28,11 @@ export interface SitePageTopicProfile {
   bodyContexts: SiteContentContext[];
   contentDebug: CrawlContentDebug;
   existingInternalLinkTargets: string[];
+  existingInternalLinkEntries: Array<{
+    normalizedUrl: string;
+    anchorText: string;
+    normalizedAnchorText: string;
+  }>;
   inboundInternalLinkCount: number;
   outboundInternalLinkCount: number;
   commerciallyImportant: boolean;

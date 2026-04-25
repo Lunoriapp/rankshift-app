@@ -2,6 +2,12 @@ import { chromium, type Browser, type Page } from "playwright";
 
 import { buildSuggestedAltText, getImageFileName } from "./alt-text";
 import { extractEditorialContentInBrowser } from "./internalLinking/editorialExtractor";
+import {
+  normalizeAnchorTextForCompare,
+  normalizeComparableHost,
+  normalizeUrlForCompare,
+  resolveUrlAgainstPage,
+} from "./internalLinking/urlCompare";
 import type { InternalLinkingReport } from "./internalLinking/types";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
@@ -23,6 +29,7 @@ export interface CrawlImage {
 export interface CrawlInternalLink {
   href: string;
   text: string;
+  resolvedUrl: string;
   normalizedUrl: string;
 }
 
@@ -271,26 +278,79 @@ function extractAttribute(tag: string, attribute: string): string {
   return "";
 }
 
-function extractFallbackDiscoveredUrls(html: string, currentUrl: string): string[] {
-  const hrefPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi;
-  const urls = new Set<string>();
+function extractFallbackInternalLinks(html: string, currentUrl: string): CrawlInternalLink[] {
+  let currentUrlObject: URL;
+
+  try {
+    currentUrlObject = new URL(currentUrl);
+  } catch {
+    return [];
+  }
+
+  const linkPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const links: CrawlInternalLink[] = [];
+  const seen = new Set<string>();
   let match: RegExpExecArray | null;
 
-  while ((match = hrefPattern.exec(html)) !== null) {
-    const href = match[1]?.trim();
+  while ((match = linkPattern.exec(html)) !== null) {
+    const href = decodeHtmlEntities(match[1]?.trim() ?? "");
+    const anchorText = stripHtml(match[2] ?? "");
 
     if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
       continue;
     }
 
+    const resolvedUrl = resolveUrlAgainstPage(href, currentUrlObject.href);
+
+    if (!resolvedUrl) {
+      continue;
+    }
+
+    let resolved: URL;
+
     try {
-      urls.add(normalizeUrlForComparison(new URL(href, currentUrl).toString()));
+      resolved = new URL(resolvedUrl);
     } catch {
       continue;
     }
+
+    if (!["http:", "https:"].includes(resolved.protocol)) {
+      continue;
+    }
+
+    if (
+      normalizeComparableHost(resolved.hostname) !==
+      normalizeComparableHost(currentUrlObject.hostname)
+    ) {
+      continue;
+    }
+
+    const normalizedUrl = normalizeUrlForCompare(resolvedUrl);
+
+    if (!normalizedUrl) {
+      continue;
+    }
+
+    const dedupeKey = `${normalizedUrl}|${normalizeAnchorTextForCompare(anchorText)}`;
+
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+
+    seen.add(dedupeKey);
+    links.push({
+      href,
+      text: anchorText,
+      resolvedUrl,
+      normalizedUrl,
+    });
   }
 
-  return Array.from(urls);
+  return links;
+}
+
+function extractFallbackDiscoveredUrls(links: CrawlInternalLink[]): string[] {
+  return Array.from(new Set(links.map((link) => normalizeUrlForComparison(link.resolvedUrl))));
 }
 
 function collectSchemaTypesFromValue(value: unknown, target: Set<string>) {
@@ -428,12 +488,8 @@ async function crawlPageWithBasicFetch(url: string): Promise<CrawlPageSnapshotRe
       type: "list_item" as const,
     })),
   ];
-  const discoveredUrls = extractFallbackDiscoveredUrls(html, normalizedUrl);
-  const existingInternalLinks = discoveredUrls.map((href) => ({
-    href,
-    text: "",
-    normalizedUrl: href,
-  }));
+  const existingInternalLinks = extractFallbackInternalLinks(html, normalizedUrl);
+  const discoveredUrls = extractFallbackDiscoveredUrls(existingInternalLinks);
 
   return {
     loadTimeMs: Date.now() - startedAt,
@@ -513,10 +569,6 @@ function normalizeUrlForComparison(url: string): string {
   parsed.search = "";
   parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
   return parsed.toString();
-}
-
-function normalizeComparableHost(host: string): string {
-  return host.replace(/^www\./i, "").toLowerCase();
 }
 
 function shouldCrawlUrl(url: string, host: string): boolean {
@@ -616,7 +668,10 @@ async function discoverSitemapUrls(startUrl: string, maxUrls = 180): Promise<str
           const normalized = normalizeUrlForComparison(loc);
           const parsed = new URL(normalized);
 
-          if (parsed.hostname !== start.hostname) {
+          if (
+            normalizeComparableHost(parsed.hostname) !==
+            normalizeComparableHost(start.hostname)
+          ) {
             continue;
           }
 
@@ -811,6 +866,8 @@ async function crawlPageSnapshot(browser: Browser, url: string): Promise<{
     const contentType = response.headers()["content-type"] ?? null;
     const extracted = await extractPageData(page);
     const discoveredUrls = await page.evaluate((currentUrl) => {
+      const normalizeHost = (host: string): string =>
+        host.trim().replace(/^www\./i, "").toLowerCase();
       const current = new URL(currentUrl);
       const urls = Array.from(document.querySelectorAll("a[href]"))
         .map((anchor) => anchor.getAttribute("href"))
@@ -820,9 +877,8 @@ async function crawlPageSnapshot(browser: Browser, url: string): Promise<{
             const resolved = new URL(href, current.href);
 
             if (
-              resolved.hostname !== current.hostname ||
-              resolved.protocol === "mailto:" ||
-              resolved.protocol === "tel:"
+              !["http:", "https:"].includes(resolved.protocol) ||
+              normalizeHost(resolved.hostname) !== normalizeHost(current.hostname)
             ) {
               return null;
             }
@@ -860,10 +916,29 @@ async function crawlPageSnapshot(browser: Browser, url: string): Promise<{
         bodyText: extracted.bodyText,
         contentSections: extracted.contentSections,
         contentDebug: extracted.contentDebug,
-        existingInternalLinks: extracted.existingInternalLinks.map((link) => ({
-          ...link,
-          normalizedUrl: normalizeUrlForComparison(link.normalizedUrl),
-        })),
+        existingInternalLinks: extracted.existingInternalLinks
+          .map((link) => {
+            const resolvedUrl = resolveUrlAgainstPage(
+              link.resolvedUrl || link.href,
+              page.url(),
+            );
+            const normalizedUrl = normalizeUrlForCompare(
+              link.normalizedUrl || resolvedUrl || link.href,
+              page.url(),
+            );
+
+            if (!resolvedUrl || !normalizedUrl) {
+              return null;
+            }
+
+            return {
+              href: link.href,
+              text: link.text,
+              resolvedUrl,
+              normalizedUrl,
+            };
+          })
+          .filter((link): link is CrawlInternalLink => link !== null),
         canonical: extracted.canonical,
         robots: extracted.robots,
         indexable: isIndexable,

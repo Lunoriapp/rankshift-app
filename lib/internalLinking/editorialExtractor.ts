@@ -285,6 +285,51 @@ export function extractEditorialContentInBrowser(
       })
       .filter((heading): heading is CrawlHeading => heading !== null);
 
+  const normalizeComparableHost = (value: string): string =>
+    value.trim().replace(/^www\./i, "").toLowerCase();
+
+  const resolveInternalLink = (
+    href: string,
+    anchorText: string,
+    currentUrlObject: URL,
+  ): CrawlInternalLink | null => {
+    if (
+      !href ||
+      href.startsWith("#") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:")
+    ) {
+      return null;
+    }
+
+    try {
+      const resolved = new URL(href, currentUrlObject.href);
+
+      if (!["http:", "https:"].includes(resolved.protocol)) {
+        return null;
+      }
+
+      if (
+        normalizeComparableHost(resolved.hostname) !==
+        normalizeComparableHost(currentUrlObject.hostname)
+      ) {
+        return null;
+      }
+
+      resolved.hash = "";
+      const resolvedUrl = resolved.toString();
+
+      return {
+        href,
+        text: anchorText,
+        resolvedUrl,
+        normalizedUrl: resolvedUrl,
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const extractFromRoot = (root: Element, selector: string): RootExtractionResult => {
     const visibleH1s = extractVisibleDocumentH1s();
     const headings = [...visibleH1s, ...extractHeadingsFromContainer(root)];
@@ -341,47 +386,49 @@ export function extractEditorialContentInBrowser(
       const anchors = Array.from(node.querySelectorAll("a[href]"));
 
       for (const anchor of anchors) {
-        const href = anchor.getAttribute("href");
-        const anchorText = normalizeWhitespace(anchor.textContent ?? "");
+        const href = anchor.getAttribute("href")?.trim() ?? "";
+        const anchorText = normalizeWhitespace(
+          anchor.textContent ?? anchor.getAttribute("aria-label") ?? "",
+        );
+        const link = resolveInternalLink(href, anchorText, currentUrlObject);
 
-        if (
-          !href ||
-          !anchorText ||
-          href.startsWith("#") ||
-          href.startsWith("mailto:") ||
-          href.startsWith("tel:")
-        ) {
+        if (!link || !anchorText) {
           continue;
         }
 
-        try {
-          const resolved = new URL(href, currentUrlObject.href);
+        const dedupeKey = `${link.resolvedUrl}|${anchorText.toLowerCase()}|${normalizedKey}`;
 
-          if (resolved.hostname !== currentUrlObject.hostname) {
-            continue;
-          }
-
-          resolved.hash = "";
-          resolved.search = "";
-          resolved.pathname = resolved.pathname.replace(/\/+$/, "") || "/";
-
-          const normalizedUrl = resolved.toString();
-          const dedupeKey = `${normalizedUrl}|${anchorText.toLowerCase()}|${normalizedKey}`;
-
-          if (seenLinkKeys.has(dedupeKey)) {
-            continue;
-          }
-
-          seenLinkKeys.add(dedupeKey);
-          contextualLinks.push({
-            href: normalizedUrl,
-            text: anchorText,
-            normalizedUrl,
-          });
-        } catch {
+        if (seenLinkKeys.has(dedupeKey)) {
           continue;
         }
+
+        seenLinkKeys.add(dedupeKey);
+        contextualLinks.push(link);
       }
+    }
+
+    const allInternalLinks: CrawlInternalLink[] = [];
+    const seenAllInternalLinks = new Set<string>();
+
+    for (const anchor of Array.from(document.querySelectorAll("a[href]"))) {
+      const href = anchor.getAttribute("href")?.trim() ?? "";
+      const anchorText = normalizeWhitespace(
+        anchor.textContent ?? anchor.getAttribute("aria-label") ?? "",
+      );
+      const link = resolveInternalLink(href, anchorText, currentUrlObject);
+
+      if (!link) {
+        continue;
+      }
+
+      const dedupeKey = `${link.resolvedUrl}|${anchorText.toLowerCase()}`;
+
+      if (seenAllInternalLinks.has(dedupeKey)) {
+        continue;
+      }
+
+      seenAllInternalLinks.add(dedupeKey);
+      allInternalLinks.push(link);
     }
 
     const headingTexts = {
@@ -397,7 +444,7 @@ export function extractEditorialContentInBrowser(
       headings,
       bodyText,
       contentSections: sections,
-      existingInternalLinks: contextualLinks,
+      existingInternalLinks: allInternalLinks,
       contentDebug: {
         selectedContentSelector: selector,
         totalHeadingCount: headings.length,
@@ -415,7 +462,7 @@ export function extractEditorialContentInBrowser(
         headingTexts,
         hasMultipleVisibleH1: headingTexts.h1.length > 1,
         contextualBodyLinks: contextualLinks.map((link) => ({
-          href: link.normalizedUrl,
+          href: link.resolvedUrl,
           text: link.text,
         })),
       },

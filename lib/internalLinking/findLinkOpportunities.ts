@@ -5,6 +5,7 @@ import { scoreOpportunity } from "./scoreOpportunity";
 import type { OpportunityScore } from "./scoreOpportunity";
 import { buildSnippet, normalizePhrase, phraseWordOverlap, tokenize } from "./shared";
 import { suggestAnchorText } from "./suggestAnchorText";
+import { normalizeAnchorTextForCompare, normalizeUrlForCompare } from "./urlCompare";
 import type {
   InternalLinkDebugEntry,
   InternalLinkOpportunity,
@@ -27,40 +28,61 @@ function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string
 }
 
 function normalizeComparableUrl(url: string): string {
-  const parsed = new URL(url);
-  const hostname = parsed.hostname.replace(/^www\./i, "").toLowerCase();
-  parsed.hash = "";
-  parsed.search = "";
-  parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
-  return `${hostname}${parsed.pathname.toLowerCase()}`;
+  return normalizeUrlForCompare(url) ?? url.trim().toLowerCase();
 }
 
-function shouldSkipPair(source: SitePageTopicProfile, target: SitePageTopicProfile): boolean {
-  if (source.url === target.url) {
-    return true;
+function sourceAlreadyLinksToTarget(
+  source: SitePageTopicProfile,
+  targetUrl: string,
+): boolean {
+  const normalizedTarget = normalizeUrlForCompare(targetUrl);
+  return Boolean(
+    normalizedTarget && source.existingInternalLinkTargets.includes(normalizedTarget),
+  );
+}
+
+function sourceAlreadyLinksAnchorToTarget(
+  source: SitePageTopicProfile,
+  targetUrl: string,
+  anchor: string,
+): boolean {
+  const normalizedTarget = normalizeUrlForCompare(targetUrl);
+  const normalizedAnchor = normalizeAnchorTextForCompare(anchor);
+
+  if (!normalizedTarget || !normalizedAnchor) {
+    return false;
   }
 
-  const shouldEnforceExistingLinkSkip =
-    source.contentDebug.selectedContentSelector !== "fetch-fallback";
+  return source.existingInternalLinkEntries.some(
+    (entry) =>
+      entry.normalizedUrl === normalizedTarget &&
+      entry.normalizedAnchorText === normalizedAnchor,
+  );
+}
 
-  if (
-    shouldEnforceExistingLinkSkip &&
-    source.existingInternalLinkTargets.includes(target.url)
-  ) {
-    return true;
+function getPairSkipReason(
+  source: SitePageTopicProfile,
+  target: SitePageTopicProfile,
+): string | null {
+  if (source.url === target.url) {
+    return "Skipped because source and target are the same page.";
+  }
+
+  if (sourceAlreadyLinksToTarget(source, target.url)) {
+    return "Skipped: source already links to target.";
   }
 
   if (!source.indexable || !target.indexable) {
-    return true;
+    return "Skipped because source or target is not indexable.";
   }
 
   const blockedTargetPathFragments = ["/404", "/not-found", "/error", "/page-not-found"];
   const targetPath = new URL(target.url).pathname.toLowerCase();
   if (blockedTargetPathFragments.some((fragment) => targetPath.includes(fragment))) {
-    return true;
+    return "Skipped because target path is blocked.";
   }
 
-  return false;
+  return null;
 }
 
 const GENERIC_TOPIC_TOKENS = new Set([
@@ -240,7 +262,7 @@ function buildRelatedCandidates(
     return !blockedTargetPathFragments.some((fragment) => targetPath.includes(fragment));
   };
 
-  const strictCandidates = pages.filter((target) => !shouldSkipPair(source, target));
+  const strictCandidates = pages.filter((target) => getPairSkipReason(source, target) === null);
   const candidatePool = strictCandidates.length > 0 ? strictCandidates : pages.filter(isBroadlyEligible);
 
   const ranked = candidatePool
@@ -372,17 +394,27 @@ export function findLinkOpportunities(
 
     for (const target of topicProfiles) {
       diagnostics.pairEvaluations += 1;
+      const skipReason = getPairSkipReason(source, target);
+      const alreadyLinked = sourceAlreadyLinksToTarget(source, target.url);
 
-      if (shouldSkipPair(source, target)) {
+      if (skipReason) {
+        if (source.url === target.url) {
+          diagnostics.droppedByFilter.samePage += 1;
+        } else if (alreadyLinked) {
+          diagnostics.droppedByFilter.alreadyLinked += 1;
+        } else if (!source.indexable || !target.indexable) {
+          diagnostics.droppedByFilter.notIndexable += 1;
+        }
+
         targetEvaluations.push({
           targetUrl: target.url,
           targetTitle: target.title,
           candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
           candidateAnchorPhrases: [],
-          existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+          existingContextualBodyLink: alreadyLinked,
           matchedSnippets: [],
           decision: "skipped",
-          reasons: ["Skipped because source and target are the same page or already linked."],
+          reasons: [skipReason],
         });
         continue;
       }
@@ -393,7 +425,7 @@ export function findLinkOpportunities(
           targetTitle: target.title,
           candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
           candidateAnchorPhrases: [],
-          existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+          existingContextualBodyLink: alreadyLinked,
           matchedSnippets: [],
           decision: "skipped",
           reasons: [
@@ -507,6 +539,12 @@ export function findLinkOpportunities(
       if (winningCandidate) {
         const snippet = buildSnippet(winningCandidate.contextText, winningCandidate.anchor);
         const key = `${source.url}|${target.url}|${normalizePhrase(winningCandidate.anchor)}`;
+        const alreadyLinkedToTarget = sourceAlreadyLinksToTarget(source, target.url);
+        const alreadyLinkedWithSameAnchor = sourceAlreadyLinksAnchorToTarget(
+          source,
+          target.url,
+          winningCandidate.anchor,
+        );
 
         if (seen.has(key)) {
           diagnostics.duplicateCandidatesRemoved += 1;
@@ -517,10 +555,31 @@ export function findLinkOpportunities(
             candidateAnchorPhrases: candidateAnchorPhrases
               .sort((a, b) => b.score - a.score)
               .slice(0, 12),
-            existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+            existingContextualBodyLink: alreadyLinkedToTarget,
             matchedSnippets: [snippet],
             decision: "rejected",
             reasons: ["Best contextual candidate duplicated an existing source/target/anchor match."],
+          });
+          continue;
+        }
+
+        if (alreadyLinkedToTarget || alreadyLinkedWithSameAnchor) {
+          diagnostics.droppedByFilter.alreadyLinked += 1;
+          targetEvaluations.push({
+            targetUrl: target.url,
+            targetTitle: target.title,
+            candidatePhrases: target.topicPhrases.map((phrase) => phrase.phrase),
+            candidateAnchorPhrases: candidateAnchorPhrases
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 12),
+            existingContextualBodyLink: alreadyLinkedToTarget,
+            matchedSnippets: [snippet],
+            decision: "skipped",
+            reasons: [
+              alreadyLinkedWithSameAnchor
+                ? "Skipped: source already links this anchor phrase to the target."
+                : "Skipped: source already links to target.",
+            ],
           });
           continue;
         }
@@ -552,7 +611,7 @@ export function findLinkOpportunities(
           candidateAnchorPhrases: candidateAnchorPhrases
             .sort((a, b) => b.score - a.score)
             .slice(0, 12),
-          existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+          existingContextualBodyLink: alreadyLinkedToTarget,
           matchedSnippets: [snippet],
           decision: "accepted",
           reasons: [
@@ -571,7 +630,7 @@ export function findLinkOpportunities(
           candidateAnchorPhrases: candidateAnchorPhrases
             .sort((a, b) => b.score - a.score)
             .slice(0, 12),
-          existingContextualBodyLink: source.existingInternalLinkTargets.includes(target.url),
+          existingContextualBodyLink: sourceAlreadyLinksToTarget(source, target.url),
           matchedSnippets: [],
           decision: "rejected",
           reasons:
@@ -628,12 +687,39 @@ export function findLinkOpportunities(
   const sorted = [...bestBySourceAnchor.values()].sort(
     (a, b) => b.confidenceScore - a.confidenceScore,
   );
-  const finalOpportunities = sorted.slice(0, maxOpportunities);
+  const sourceProfileByUrl = new Map(
+    topicProfiles.map((profile) => [normalizeComparableUrl(profile.url), profile]),
+  );
+  const filteredByExistingLinks = sorted.filter((suggestion) => {
+    const sourceProfile = sourceProfileByUrl.get(normalizeComparableUrl(suggestion.sourceUrl));
+
+    if (!sourceProfile) {
+      return true;
+    }
+
+    const alreadyLinkedToTarget = sourceAlreadyLinksToTarget(sourceProfile, suggestion.targetUrl);
+    const alreadyLinkedWithSameAnchor = sourceAlreadyLinksAnchorToTarget(
+      sourceProfile,
+      suggestion.targetUrl,
+      suggestion.suggestedAnchor,
+    );
+
+    if (alreadyLinkedToTarget || alreadyLinkedWithSameAnchor) {
+      diagnostics.droppedByFilter.alreadyLinked += 1;
+      return false;
+    }
+
+    return true;
+  });
+  const finalOpportunities = filteredByExistingLinks.slice(0, maxOpportunities);
   diagnostics.duplicateCandidatesRemoved += Math.max(
     0,
     suggestions.length - bestBySourceTarget.size + (bestBySourceTarget.size - sorted.length),
   );
-  diagnostics.removedByGlobalCap = Math.max(0, sorted.length - finalOpportunities.length);
+  diagnostics.removedByGlobalCap = Math.max(
+    0,
+    filteredByExistingLinks.length - finalOpportunities.length,
+  );
   diagnostics.finalOpportunities = finalOpportunities.length;
 
   console.debug("[internal-linking][pipeline]", diagnostics);
