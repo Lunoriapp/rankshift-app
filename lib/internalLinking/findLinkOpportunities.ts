@@ -63,6 +63,24 @@ function inferBrandCandidates(pages: SitePageTopicProfile[]): Set<string> {
     pushCandidate(homepage.primaryTopic);
   }
 
+  // Repeated page-title lead segments are usually brand markers across a site.
+  const leadCounts = new Map<string, number>();
+  for (const page of pages) {
+    const lead = page.title.split(/[|:-]/)[0] ?? page.title;
+    const normalizedLead = normalizeAnchorTextForCompare(lead);
+
+    if (!normalizedLead || normalizedLead.length < 3) {
+      continue;
+    }
+
+    leadCounts.set(normalizedLead, (leadCounts.get(normalizedLead) ?? 0) + 1);
+  }
+
+  const repeatedLeads = [...leadCounts.entries()]
+    .filter(([, count]) => count >= Math.max(2, Math.floor(pages.length * 0.3)))
+    .map(([lead]) => lead);
+  repeatedLeads.forEach((lead) => pushCandidate(lead));
+
   if (pages[0]) {
     try {
       const host = new URL(pages[0].url).hostname.replace(/^www\./i, "");
@@ -74,6 +92,22 @@ function inferBrandCandidates(pages: SitePageTopicProfile[]): Set<string> {
   }
 
   return candidates;
+}
+
+function shouldDebugAnchorExample(
+  sourceTitle: string,
+  targetTitle: string,
+  contextText: string,
+): boolean {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+
+  const haystack = `${sourceTitle} ${targetTitle} ${contextText}`.toLowerCase();
+  return (
+    haystack.includes("spencer & james") ||
+    (haystack.includes("recruitment") && haystack.includes("agency"))
+  );
 }
 
 function isAboutTarget(url: string): boolean {
@@ -622,6 +656,13 @@ export function findLinkOpportunities(
         matchType: "exact" | "close" | "fallback";
         scored: OpportunityScore;
       } | null = null;
+      let bestNonBrandCandidate: {
+        contextText: string;
+        sectionLabel: string;
+        anchor: string;
+        matchType: "exact" | "close" | "fallback";
+        scored: OpportunityScore;
+      } | null = null;
 
       for (const context of source.bodyContexts) {
         diagnostics.contextsEvaluated += 1;
@@ -716,9 +757,32 @@ export function findLinkOpportunities(
             scored,
           };
         }
+
+        if (!isBrandAnchor(suggestion.anchor, brandCandidates)) {
+          if (!bestNonBrandCandidate || scored.score > bestNonBrandCandidate.scored.score) {
+            bestNonBrandCandidate = {
+              contextText: context.text,
+              sectionLabel: context.sectionLabel,
+              anchor: suggestion.anchor,
+              matchType: suggestion.matchType,
+              scored,
+            };
+          }
+        }
       }
 
       if (winningCandidate) {
+        const debugContextText = winningCandidate.contextText;
+        const debugEnabled = shouldDebugAnchorExample(
+          source.title,
+          target.title,
+          debugContextText,
+        );
+        if (isBrandAnchor(winningCandidate.anchor, brandCandidates) && bestNonBrandCandidate) {
+          // Prefer topical non-brand anchor whenever one exists.
+          winningCandidate = bestNonBrandCandidate;
+        }
+
         const snippet = buildSnippet(winningCandidate.contextText, winningCandidate.anchor);
         const key = `${source.url}|${target.url}|${normalizePhrase(winningCandidate.anchor)}`;
         const alreadyLinkedToTarget = sourceAlreadyLinksToTarget(source, target.url);
@@ -733,9 +797,32 @@ export function findLinkOpportunities(
           (isHomepageTarget(target.url) || isAboutTarget(target.url)) &&
           winningCandidate.scored.confidence === "High" &&
           !alreadyLinkedToTarget &&
-          brandAnchorSuggestionsAccepted === 0;
+          brandAnchorSuggestionsAccepted === 0 &&
+          !bestNonBrandCandidate;
+
+        if (debugEnabled) {
+          const rankedCandidates = [...candidateAnchorPhrases].sort((a, b) => b.score - a.score);
+          console.debug("[internal-linking][anchor-debug] context_sentence=", debugContextText);
+          for (const candidate of rankedCandidates) {
+            console.debug(
+              "[internal-linking][anchor-debug] candidate=",
+              candidate.anchor,
+              "score=",
+              candidate.score,
+              "reason=",
+              candidate.reason,
+            );
+          }
+        }
 
         if (seen.has(key)) {
+          if (debugEnabled) {
+            console.debug(
+              "[internal-linking][anchor-debug] selected_anchor=",
+              winningCandidate.anchor,
+              "filtered_reason=duplicate source/target/anchor",
+            );
+          }
           diagnostics.duplicateCandidatesRemoved += 1;
           targetEvaluations.push({
             targetUrl: target.url,
@@ -753,6 +840,13 @@ export function findLinkOpportunities(
         }
 
         if (alreadyLinkedToTarget || alreadyLinkedWithSameAnchor) {
+          if (debugEnabled) {
+            console.debug(
+              "[internal-linking][anchor-debug] selected_anchor=",
+              winningCandidate.anchor,
+              "filtered_reason=already linked to target or anchor/target already linked",
+            );
+          }
           diagnostics.droppedByFilter.alreadyLinked += 1;
           targetEvaluations.push({
             targetUrl: target.url,
@@ -774,6 +868,13 @@ export function findLinkOpportunities(
         }
 
         if (isBrand && !brandAnchorAllowed) {
+          if (debugEnabled) {
+            console.debug(
+              "[internal-linking][anchor-debug] selected_anchor=",
+              winningCandidate.anchor,
+              "filtered_reason=brand anchor policy",
+            );
+          }
           diagnostics.droppedByFilter.anchorMatchOrSimilarity += 1;
           targetEvaluations.push({
             targetUrl: target.url,
@@ -810,6 +911,13 @@ export function findLinkOpportunities(
           category: "Internal linking",
           opportunityType: "contextual",
         });
+        if (debugEnabled) {
+          console.debug(
+            "[internal-linking][anchor-debug] selected_anchor=",
+            winningCandidate.anchor,
+            "result=accepted",
+          );
+        }
         if (isBrand) {
           brandAnchorSuggestionsAccepted += 1;
         }

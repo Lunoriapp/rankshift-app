@@ -40,6 +40,8 @@ const SERVICE_TOPIC_TERMS = new Set([
   "recruitment",
   "seo",
   "family law",
+  "web design",
+  "design",
   "audit",
   "marketing",
 ]);
