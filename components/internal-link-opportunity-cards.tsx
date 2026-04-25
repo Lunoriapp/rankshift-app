@@ -84,6 +84,55 @@ function highlightAnchor(snippet: string, anchor: string | null) {
   );
 }
 
+function seoPriority(opportunity: InternalLinkOpportunity): number {
+  if (!opportunity.suggestedAnchor) {
+    return -30;
+  }
+
+  const anchor = normalizeAnchor(opportunity.suggestedAnchor);
+  const words = anchor.split(" ").filter(Boolean);
+  const serviceTerms = ["agency", "service", "services", "recruitment", "law", "mediation", "seo", "consultant", "specialist", "advice", "support"];
+  const hasServiceTerm = serviceTerms.some((term) => anchor.includes(term));
+  const isGeneric = ["click here", "read more", "learn more", "this page", "related page link"].includes(anchor);
+  const sourceTokens = normalizeAnchor(compactUrl(opportunity.sourceUrl)).split(" ").filter(Boolean);
+  const isBrandish = sourceTokens.length > 0 && sourceTokens.every((token) => anchor.includes(token));
+  const targetPath = (() => {
+    try {
+      return new URL(opportunity.targetUrl).pathname.toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+  const isAboutOrHome = targetPath === "/" || /\/about(?:[-_/]|$)/i.test(targetPath);
+  const targetTokens = new Set(
+    `${decodeHtmlEntities(opportunity.targetTitle)} ${targetPath}`
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .filter(Boolean),
+  );
+  const keywordOverlap = words.filter((token) => targetTokens.has(token)).length;
+
+  let score = 0;
+  score += hasServiceTerm ? 14 : 0;
+  score += words.length >= 2 && words.length <= 4 ? 10 : words.length === 5 ? 4 : -8;
+  score += keywordOverlap * 5;
+  score += opportunity.confidence === "High" ? 8 : opportunity.confidence === "Medium" ? 4 : 0;
+  score += Math.round(opportunity.confidenceScore * 0.08);
+  score -= isBrandish ? 24 : 0;
+  score -= isGeneric ? 22 : 0;
+  score -= isAboutOrHome ? 10 : 0;
+
+  return score;
+}
+
+function normalizeAnchor(value: string): string {
+  return decodeHtmlEntities(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function InternalLinkOpportunityCards({
   opportunities,
   maxItems,
@@ -97,6 +146,13 @@ export function InternalLinkOpportunityCards({
     const confidenceRank = { High: 3, Medium: 2, Low: 1 } as const;
 
     return [...opportunities].sort((a, b) => {
+      const seoA = seoPriority(a);
+      const seoB = seoPriority(b);
+
+      if (seoA !== seoB) {
+        return seoB - seoA;
+      }
+
       if (confidenceRank[a.confidence] !== confidenceRank[b.confidence]) {
         return confidenceRank[b.confidence] - confidenceRank[a.confidence];
       }

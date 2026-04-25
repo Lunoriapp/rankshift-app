@@ -22,6 +22,35 @@ interface RewriteStrength {
   confidenceScore: number;
 }
 
+const ANCHOR_INTENT_TERMS = new Set([
+  "agency",
+  "service",
+  "services",
+  "recruitment",
+  "family law",
+  "law",
+  "mediation",
+  "consultant",
+  "consultants",
+  "specialist",
+  "specialists",
+  "advice",
+  "support",
+  "seo",
+  "audit",
+  "design",
+  "marketing",
+]);
+
+const GENERIC_ANCHOR_PHRASES = new Set([
+  "click here",
+  "read more",
+  "learn more",
+  "find out more",
+  "related page link",
+  "this page",
+]);
+
 function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string | null): string {
   const base = `${sourceUrl}|${targetUrl}|${anchor || "rewrite"}`
     .toLowerCase()
@@ -388,6 +417,49 @@ function hasUsableAnchor(value: string | null | undefined): value is string {
   return normalized.length > 0 && normalized !== "related page link";
 }
 
+function anchorKeywordAlignment(anchor: string, opportunity: InternalLinkOpportunity): number {
+  const anchorTokens = new Set(tokenize(anchor));
+  const targetTokens = new Set(
+    tokenize(`${opportunity.targetTitle} ${new URL(opportunity.targetUrl).pathname}`),
+  );
+
+  if (anchorTokens.size === 0 || targetTokens.size === 0) {
+    return 0;
+  }
+
+  const overlap = [...anchorTokens].filter((token) => targetTokens.has(token)).length;
+  return overlap / Math.max(1, anchorTokens.size);
+}
+
+function anchorIntentScore(
+  opportunity: InternalLinkOpportunity,
+  brandCandidates: Set<string>,
+): number {
+  if (!hasUsableAnchor(opportunity.suggestedAnchor)) {
+    return -24;
+  }
+
+  const anchor = normalizeAnchorTextForCompare(opportunity.suggestedAnchor);
+  const words = anchor.split(" ").filter(Boolean).length;
+  const hasServiceTerm = [...ANCHOR_INTENT_TERMS].some((term) => anchor.includes(term));
+  const isBrand = isBrandAnchor(anchor, brandCandidates);
+  const isGeneric = GENERIC_ANCHOR_PHRASES.has(anchor);
+  const targetPath = new URL(opportunity.targetUrl).pathname.toLowerCase();
+  const isAboutOrHome = targetPath === "/" || /\/about(?:[-_/]|$)/i.test(targetPath);
+  const alignment = anchorKeywordAlignment(opportunity.suggestedAnchor, opportunity);
+
+  let score = 0;
+  score += hasServiceTerm ? 18 : 0;
+  score += words >= 2 && words <= 4 ? 12 : words === 5 ? 6 : -8;
+  score += Math.round(alignment * 16);
+  score += opportunity.opportunityType === "contextual" ? 6 : 0;
+  score -= isBrand ? 28 : 0;
+  score -= isGeneric ? 22 : 0;
+  score -= isAboutOrHome ? 10 : 0;
+
+  return score;
+}
+
 function rewriteStrengthForPair(
   source: SitePageTopicProfile,
   target: SitePageTopicProfile,
@@ -406,6 +478,7 @@ function recalibrateAnchorConfidence(
   scored: OpportunityScore,
   anchor: string,
   isBrand: boolean,
+  targetUrl: string,
 ): RewriteStrength {
   if (isBrand) {
     return {
@@ -419,9 +492,19 @@ function recalibrateAnchorConfidence(
   const combinedFit = sourceFit * 0.45 + targetFit * 0.55;
   const wordCount = anchor.split(/\s+/).filter(Boolean).length;
   const hasStrongLength = wordCount >= 2 && wordCount <= 5;
+  const normalizedAnchor = normalizeAnchorTextForCompare(anchor);
+  const hasServiceTerm = [...ANCHOR_INTENT_TERMS].some((term) =>
+    normalizedAnchor.includes(term),
+  );
+  const isGeneric = GENERIC_ANCHOR_PHRASES.has(normalizedAnchor);
+  const targetPath = new URL(targetUrl).pathname.toLowerCase();
+  const isAboutOrHome = targetPath === "/" || /\/about(?:[-_/]|$)/i.test(targetPath);
 
   if (
+    !isGeneric &&
     hasStrongLength &&
+    hasServiceTerm &&
+    !isAboutOrHome &&
     scored.score >= 78 &&
     targetFit >= 0.56 &&
     sourceFit >= 0.42 &&
@@ -466,8 +549,16 @@ function qualityScore(
   const sourceTargetThemeBonus =
     source && target ? Math.min(12, Math.round(topicOverlapScore(source, target) * 0.18)) : 0;
   const rewritePenalty = hasUsableAnchor(anchor) ? 0 : -8;
+  const intent = anchorIntentScore(opportunity, brandCandidates);
 
-  return base + nonBrandBonus + topicalAnchorBonus + sourceTargetThemeBonus + rewritePenalty;
+  return (
+    base +
+    nonBrandBonus +
+    topicalAnchorBonus +
+    sourceTargetThemeBonus +
+    rewritePenalty +
+    intent
+  );
 }
 
 function topicOverlapScore(source: SitePageTopicProfile, target: SitePageTopicProfile): number {
@@ -1001,6 +1092,7 @@ export function findLinkOpportunities(
           winningCandidate.scored,
           winningCandidate.anchor,
           isBrand,
+          target.url,
         );
         suggestions.push({
           id: buildOpportunityId(source.url, target.url, winningCandidate.anchor),

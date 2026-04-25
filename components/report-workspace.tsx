@@ -217,6 +217,45 @@ function isLikelyBrandAnchor(anchor: string, pageUrl: string): boolean {
   }
 }
 
+function previewSeoPriority(opportunity: { suggestedAnchor: string | null; targetUrl: string; targetTitle: string; confidence: "High" | "Medium" | "Low"; confidenceScore: number }, pageUrl: string): number {
+  if (!opportunity.suggestedAnchor) {
+    return -30;
+  }
+
+  const anchor = opportunity.suggestedAnchor.toLowerCase().trim();
+  const words = anchor.split(/\s+/).filter(Boolean);
+  const serviceTerms = ["agency", "service", "services", "recruitment", "law", "mediation", "seo", "consultant", "specialist", "advice", "support"];
+  const hasServiceTerm = serviceTerms.some((term) => anchor.includes(term));
+  const isBrand = isLikelyBrandAnchor(anchor, pageUrl);
+  const targetPath = (() => {
+    try {
+      return new URL(opportunity.targetUrl).pathname.toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+  const isAboutOrHome = targetPath === "/" || /\/about(?:[-_/]|$)/i.test(targetPath);
+  const targetTokens = new Set(
+    `${opportunity.targetTitle} ${targetPath}`
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .filter(Boolean),
+  );
+  const anchorTokens = words.map((word) => word.replace(/[^a-z0-9]+/g, "")).filter(Boolean);
+  const keywordOverlap = anchorTokens.filter((token) => targetTokens.has(token)).length;
+
+  let score = 0;
+  score += hasServiceTerm ? 14 : 0;
+  score += words.length >= 2 && words.length <= 4 ? 10 : words.length === 5 ? 4 : -8;
+  score += keywordOverlap * 5;
+  score += opportunity.confidence === "High" ? 8 : opportunity.confidence === "Medium" ? 4 : 0;
+  score += Math.round(opportunity.confidenceScore * 0.08);
+  score -= isBrand ? 26 : 0;
+  score -= isAboutOrHome ? 10 : 0;
+
+  return score;
+}
+
 export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
   const [payload, setPayload] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -267,6 +306,12 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     const scopedLinkOps = sourceMatched.length > 0 ? sourceMatched : allLinkOps;
     const confidenceRank = { High: 3, Medium: 2, Low: 1 } as const;
     const strongestLinkOps = [...scopedLinkOps].sort((a, b) => {
+      const seoA = previewSeoPriority(a, payload.audit.url);
+      const seoB = previewSeoPriority(b, payload.audit.url);
+      if (seoA !== seoB) {
+        return seoB - seoA;
+      }
+
       if (confidenceRank[a.confidence] !== confidenceRank[b.confidence]) {
         return confidenceRank[b.confidence] - confidenceRank[a.confidence];
       }
