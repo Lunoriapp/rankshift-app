@@ -94,6 +94,7 @@ export interface InternalLinkDebugEntry {
       anchor: string;
       matchType: "exact" | "close" | "fallback";
       sectionLabel: string;
+      sourceBlockType: SiteContentContext["blockType"];
       score: number;
       confidence: InternalLinkConfidence;
       reason: string;

@@ -71,6 +71,7 @@ const contentDebug: CrawlContentDebug = {
       text: "page audits",
     },
   ],
+  blockedAnchorPhrases: [],
 };
 
 const headings: CrawlHeading[] = [

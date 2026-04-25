@@ -296,7 +296,9 @@ export function suggestAnchorText(
   );
   const blockedAnchors =
     options.blockedAnchors instanceof Set
-      ? options.blockedAnchors
+      ? new Set(
+          [...options.blockedAnchors].map((value) => normalizeAnchorForCompare(value)),
+        )
       : new Set((options.blockedAnchors ?? []).map((value) => normalizeAnchorForCompare(value)));
   const brandCandidates =
     options.brandCandidates instanceof Set

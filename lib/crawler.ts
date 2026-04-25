@@ -64,6 +64,7 @@ export interface CrawlContentDebug {
     href: string;
     text: string;
   }>;
+  blockedAnchorPhrases: string[];
 }
 
 export interface SitePageSnapshot {
@@ -530,6 +531,7 @@ async function crawlPageWithBasicFetch(url: string): Promise<CrawlPageSnapshotRe
         },
         hasMultipleVisibleH1: h1Matches.length > 1,
         contextualBodyLinks: [],
+        blockedAnchorPhrases: [],
       },
       existingInternalLinks,
       canonical,

@@ -132,6 +132,7 @@ function buildTargetSnapshot(target: InternalLinkHarnessTargetInput): SitePageSn
       },
       hasMultipleVisibleH1: false,
       contextualBodyLinks: [],
+      blockedAnchorPhrases: [],
     },
     existingInternalLinks: [],
     canonical: null,

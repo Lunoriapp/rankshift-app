@@ -41,6 +41,10 @@ export function extractEditorialContentInBrowser(
   const { cookiePatterns, currentUrl } = input;
 
   const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, " ").trim();
+  const normalizeAnchorPhrase = (value: string): string =>
+    normalizeWhitespace(value)
+      .replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, "")
+      .toLowerCase();
 
   const prioritizedSelectors = [
     ".article-body",
@@ -431,6 +435,55 @@ export function extractEditorialContentInBrowser(
       allInternalLinks.push(link);
     }
 
+    const blockedAnchorPhrases = new Set<string>();
+    const blockedElements = Array.from(
+      document.querySelectorAll("h1, h2, h3, h4, h5, h6, nav, footer, header, button, a"),
+    );
+
+    const addBlockedPhrasesFromText = (text: string) => {
+      const normalizedText = normalizeWhitespace(text);
+
+      if (!normalizedText) {
+        return;
+      }
+
+      const fullNormalized = normalizeAnchorPhrase(normalizedText);
+
+      if (fullNormalized.length >= 2) {
+        blockedAnchorPhrases.add(fullNormalized);
+      }
+
+      const words = (normalizedText.match(/[a-z0-9&'-]+/gi) ?? [])
+        .map((word) => normalizeWhitespace(word))
+        .filter((word) => word.length >= 2);
+
+      for (let size = 2; size <= 5; size += 1) {
+        for (let index = 0; index <= words.length - size; index += 1) {
+          const phrase = normalizeAnchorPhrase(words.slice(index, index + size).join(" "));
+
+          if (phrase.length >= 4) {
+            blockedAnchorPhrases.add(phrase);
+          }
+        }
+      }
+    };
+
+    for (const element of blockedElements) {
+      if (isElementHidden(element as HTMLElement) || isInsideNonContentContainer(element)) {
+        continue;
+      }
+
+      const text = normalizeWhitespace(
+        element.textContent ?? element.getAttribute("aria-label") ?? "",
+      );
+
+      if (!text) {
+        continue;
+      }
+
+      addBlockedPhrasesFromText(text);
+    }
+
     const headingTexts = {
       h1: headings.filter((heading) => heading.level === 1).map((heading) => heading.text),
       h2: headings.filter((heading) => heading.level === 2).map((heading) => heading.text),
@@ -465,6 +518,7 @@ export function extractEditorialContentInBrowser(
           href: link.resolvedUrl,
           text: link.text,
         })),
+        blockedAnchorPhrases: [...blockedAnchorPhrases],
       },
     };
   };

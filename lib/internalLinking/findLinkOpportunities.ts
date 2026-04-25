@@ -588,7 +588,12 @@ export function findLinkOpportunities(
     const targetEvaluations: InternalLinkDebugEntry["targetEvaluations"] = [];
     let sourceOpportunities = 0;
     const blockedSourceAnchors = new Set(
-      source.existingInternalLinkEntries.map((entry) => entry.normalizedAnchorText),
+      [
+        ...source.existingInternalLinkEntries.map((entry) => entry.normalizedAnchorText),
+        ...source.contentDebug.blockedAnchorPhrases.map((phrase) =>
+          normalizeAnchorTextForCompare(phrase),
+        ),
+      ].filter(Boolean),
     );
     const preferredSourcePhrases = [
       ...source.topicPhrases
@@ -667,6 +672,11 @@ export function findLinkOpportunities(
       for (const context of source.bodyContexts) {
         diagnostics.contextsEvaluated += 1;
 
+        if (!["paragraph", "list_item"].includes(context.blockType)) {
+          diagnostics.droppedByFilter.anchorMatchOrSimilarity += 1;
+          continue;
+        }
+
         if (context.text.length < 28) {
           diagnostics.droppedByFilter.contentLength += 1;
           continue;
@@ -719,6 +729,7 @@ export function findLinkOpportunities(
             anchor: suggestion.anchor,
             matchType: suggestion.matchType,
             sectionLabel: context.sectionLabel,
+            sourceBlockType: context.blockType,
             score: scored.score,
             confidence: scored.confidence,
             reason: `Rejected for weak topical fit (source ${Math.round(sourceFit * 100)}%, target ${Math.round(targetFit * 100)}%, combined ${Math.round(combinedFit * 100)}%).`,
@@ -732,6 +743,7 @@ export function findLinkOpportunities(
             anchor: suggestion.anchor,
             matchType: suggestion.matchType,
             sectionLabel: context.sectionLabel,
+            sourceBlockType: context.blockType,
             score: scored.score,
             confidence: scored.confidence,
             reason: `Rejected because score ${scored.score} is below minimum ${minScoreByMatchType}.`,
@@ -743,6 +755,7 @@ export function findLinkOpportunities(
           anchor: suggestion.anchor,
           matchType: suggestion.matchType,
           sectionLabel: context.sectionLabel,
+          sourceBlockType: context.blockType,
           score: scored.score,
           confidence: scored.confidence,
           reason: `Kept candidate with strong source and target alignment.`,
