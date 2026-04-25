@@ -17,6 +17,7 @@ export interface AnchorSuggestion {
 
 interface SuggestAnchorTextOptions {
   preferredPhrases?: TopicPhraseCandidate[];
+  blockedAnchors?: Set<string> | string[];
 }
 
 interface RankedAnchorCandidate extends AnchorSuggestion {
@@ -51,6 +52,7 @@ const WEAK_EDGE_WORDS = new Set([
 ]);
 
 const VAGUE_ANCHORS = new Set([
+  "related page link",
   "click here",
   "learn more",
   "read more",
@@ -164,25 +166,39 @@ function rankCandidate(
   };
 }
 
-function buildFallbackAnchor(target: SitePageTopicProfile): string {
-  const orderedCandidates = [
-    target.title,
-    target.h1,
-    target.primaryTopic,
-    ...target.topicPhrases
-      .filter((phrase) => phrase.source === "title" || phrase.source === "h1")
-      .map((phrase) => phrase.phrase),
-  ];
+function normalizeAnchorForCompare(value: string): string {
+  return normalizeWhitespace(value).toLowerCase();
+}
 
-  for (const candidate of orderedCandidates) {
-    const cleaned = toNaturalAnchor(candidate);
+function extractNounPhraseCandidates(
+  sourceText: string,
+  targetTopicTokens: Set<string>,
+): string[] {
+  const words = (sourceText.match(/[a-z0-9&'-]+/gi) ?? [])
+    .map((word) => normalizeWhitespace(word))
+    .filter((word) => word.length >= 2);
+  const candidates = new Set<string>();
 
-    if (cleaned.length >= 4) {
-      return cleaned;
+  for (let size = 2; size <= 5; size += 1) {
+    for (let index = 0; index <= words.length - size; index += 1) {
+      const phrase = toNaturalAnchor(words.slice(index, index + size).join(" "));
+      const tokens = tokenizeStemmed(phrase);
+
+      if (phrase.length < 4 || isVagueAnchor(phrase) || tokens.length < 2) {
+        continue;
+      }
+
+      const overlap = overlapRatio(phrase, targetTopicTokens);
+
+      if (overlap < 0.34) {
+        continue;
+      }
+
+      candidates.add(phrase);
     }
   }
 
-  return cleanAnchor(target.h1 || target.title || target.primaryTopic);
+  return [...candidates];
 }
 
 export function suggestAnchorText(
@@ -193,6 +209,13 @@ export function suggestAnchorText(
   const titleTopicTokens = new Set(tokenizeStemmed(target.primaryTopic));
   const h1TopicTokens = new Set(tokenizeStemmed(target.h1));
   const primaryTopicTokens = new Set(tokenizeStemmed(target.primaryTopic));
+  const targetTopicTokens = new Set(
+    tokenizeStemmed(`${target.title} ${target.h1} ${target.primaryTopic}`),
+  );
+  const blockedAnchors =
+    options.blockedAnchors instanceof Set
+      ? options.blockedAnchors
+      : new Set((options.blockedAnchors ?? []).map((value) => normalizeAnchorForCompare(value)));
   const candidates: AnchorSuggestion[] = [];
   const targetSignalText = `${target.title} ${target.h1} ${target.primaryTopic}`;
   const preferredPhrases = (options.preferredPhrases ?? [])
@@ -233,6 +256,10 @@ export function suggestAnchorText(
         continue;
       }
 
+      if (blockedAnchors.has(normalizeAnchorForCompare(anchor))) {
+        continue;
+      }
+
       candidates.push({
         anchor,
         matchType: "exact",
@@ -265,6 +292,10 @@ export function suggestAnchorText(
         continue;
       }
 
+      if (blockedAnchors.has(normalizeAnchorForCompare(anchor))) {
+        continue;
+      }
+
       candidates.push({
         anchor,
         matchType: "close",
@@ -272,6 +303,19 @@ export function suggestAnchorText(
         phraseWeight: phrase.weight,
       });
     }
+  }
+
+  for (const nounPhrase of extractNounPhraseCandidates(sourceText, targetTopicTokens)) {
+    if (blockedAnchors.has(normalizeAnchorForCompare(nounPhrase))) {
+      continue;
+    }
+
+    candidates.push({
+      anchor: nounPhrase,
+      matchType: "close",
+      phraseSource: "body_term",
+      phraseWeight: 0.78,
+    });
   }
 
   if (candidates.length > 0) {
@@ -287,16 +331,5 @@ export function suggestAnchorText(
     };
   }
 
-  const fallback = buildFallbackAnchor(target);
-
-  if (!fallback) {
-    return null;
-  }
-
-  return {
-    anchor: fallback,
-    matchType: "fallback",
-    phraseSource: "h1",
-    phraseWeight: 0.3,
-  };
+  return null;
 }

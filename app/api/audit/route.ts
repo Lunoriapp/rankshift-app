@@ -150,7 +150,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const sourceOnlyKeys = new Set(
         sourceOnlyReport.opportunities.map(
           (entry) =>
-            `${entry.sourceUrl}|${entry.targetUrl}|${entry.suggestedAnchor.toLowerCase()}`,
+            `${entry.sourceUrl}|${entry.targetUrl}|${(entry.suggestedAnchor ?? entry.rewriteSuggestion ?? "rewrite").toLowerCase()}`,
         ),
       );
       const mergedRaw = [
@@ -158,14 +158,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ...fullReport.opportunities.filter(
           (entry) =>
             !sourceOnlyKeys.has(
-              `${entry.sourceUrl}|${entry.targetUrl}|${entry.suggestedAnchor.toLowerCase()}`,
+              `${entry.sourceUrl}|${entry.targetUrl}|${(entry.suggestedAnchor ?? entry.rewriteSuggestion ?? "rewrite").toLowerCase()}`,
             ),
         ),
       ];
       const bestByAnchor = new Map<string, (typeof mergedRaw)[number]>();
 
       for (const entry of mergedRaw) {
-        const anchorKey = entry.suggestedAnchor.toLowerCase();
+        const anchorKey = (entry.suggestedAnchor ?? entry.rewriteSuggestion ?? "rewrite").toLowerCase();
         const existing = bestByAnchor.get(anchorKey);
 
         if (!existing || entry.confidenceScore > existing.confidenceScore) {

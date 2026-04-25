@@ -100,6 +100,16 @@ function confidenceToNumber(confidence: InternalLinkOpportunity["confidence"]): 
   return 48;
 }
 
+function getPersistedAnchorText(opportunity: InternalLinkOpportunity): string {
+  const anchor = opportunity.suggestedAnchor?.trim() ?? "";
+
+  if (anchor.length > 0) {
+    return anchor;
+  }
+
+  return "No strong anchor found";
+}
+
 function numberToConfidence(value: number | null): InternalLinkOpportunity["confidence"] {
   if ((value ?? 0) >= 80) {
     return "High";
@@ -201,7 +211,7 @@ async function mapInternalLinkToInsert(input: {
     source_title: opportunity.sourceTitle,
     target_url: opportunity.targetUrl,
     target_title: opportunity.targetTitle,
-    suggested_anchor: opportunity.suggestedAnchor,
+    suggested_anchor: getPersistedAnchorText(opportunity),
     matched_snippet: opportunity.matchedSnippet,
     placement_hint: opportunity.placementHint,
     reason: opportunity.reason,
@@ -213,13 +223,19 @@ async function mapInternalLinkToInsert(input: {
 }
 
 function mapInternalLinkRowToOpportunity(row: InternalLinkOpportunityRow): InternalLinkOpportunity {
+  const isRewriteOnlyAnchor =
+    row.suggested_anchor.trim().toLowerCase() === "no strong anchor found";
+
   return {
     id: row.external_key,
     sourceUrl: row.source_url,
     sourceTitle: row.source_title,
     targetUrl: row.target_url,
     targetTitle: row.target_title,
-    suggestedAnchor: row.suggested_anchor,
+    suggestedAnchor: isRewriteOnlyAnchor ? null : row.suggested_anchor,
+    rewriteSuggestion: isRewriteOnlyAnchor
+      ? "Rewrite sentence to include a natural internal link to this page"
+      : null,
     matchedSnippet: row.matched_snippet,
     placementHint: row.placement_hint,
     reason: row.reason,

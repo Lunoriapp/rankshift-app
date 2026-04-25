@@ -45,7 +45,8 @@ export interface InternalLinkOpportunity {
   sourceTitle: string;
   targetUrl: string;
   targetTitle: string;
-  suggestedAnchor: string;
+  suggestedAnchor: string | null;
+  rewriteSuggestion?: string | null;
   matchedSnippet: string;
   placementHint: string;
   reason: string;
@@ -63,7 +64,7 @@ export interface InternalLinkOpportunity {
   otherPossibleMatches?: Array<{
     targetUrl: string;
     targetTitle: string;
-    suggestedAnchor: string;
+    suggestedAnchor: string | null;
     confidence: InternalLinkConfidence;
     confidenceScore: number;
   }>;

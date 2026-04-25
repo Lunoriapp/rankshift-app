@@ -21,9 +21,13 @@ function compactUrl(value: string): string {
   }
 }
 
-function highlightAnchor(snippet: string, anchor: string) {
+function highlightAnchor(snippet: string, anchor: string | null) {
   const normalizedSnippet = decodeHtmlEntities(snippet);
-  const normalizedAnchor = decodeHtmlEntities(anchor);
+  const normalizedAnchor = decodeHtmlEntities(anchor ?? "");
+
+  if (!normalizedAnchor) {
+    return normalizedSnippet;
+  }
   const lowerSnippet = normalizedSnippet.toLowerCase();
   const lowerAnchor = normalizedAnchor.toLowerCase();
   const index = lowerSnippet.indexOf(lowerAnchor);
@@ -90,7 +94,12 @@ export function InternalLinkOpportunityCards({
     }, 1800);
   };
 
-  const handleCopyAnchor = async (id: string, anchor: string) => {
+  const handleCopyAnchor = async (id: string, anchor: string | null) => {
+    if (!anchor) {
+      setLinkFeedbackWithReset(id, "No anchor to copy");
+      return;
+    }
+
     const copied = await copyTextToClipboard(decodeHtmlEntities(anchor));
     setLinkFeedbackWithReset(id, copied ? "Anchor copied" : "Copy failed");
   };
@@ -129,9 +138,15 @@ export function InternalLinkOpportunityCards({
           <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
             <div className="rounded-lg border border-indigo-200 bg-white px-3 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">1. Link this text</p>
-              <p className="mt-2 inline-flex rounded-full border border-indigo-200 bg-[linear-gradient(135deg,#e0e7ff,#eef2ff)] px-3 py-1.5 text-sm font-semibold text-indigo-700">
-                {decodeHtmlEntities(opportunity.suggestedAnchor)}
-              </p>
+              {opportunity.suggestedAnchor ? (
+                <p className="mt-2 inline-flex rounded-full border border-indigo-200 bg-[linear-gradient(135deg,#e0e7ff,#eef2ff)] px-3 py-1.5 text-sm font-semibold text-indigo-700">
+                  {decodeHtmlEntities(opportunity.suggestedAnchor)}
+                </p>
+              ) : (
+                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700">
+                  No strong anchor found. Suggested rewrite available.
+                </p>
+              )}
             </div>
             <div className="hidden items-center justify-center text-slate-300 lg:flex" aria-hidden="true">
               &rarr;
@@ -156,6 +171,11 @@ export function InternalLinkOpportunityCards({
               <span className="font-semibold text-slate-900">Context match:</span>{" "}
               {highlightAnchor(opportunity.matchedSnippet, opportunity.suggestedAnchor)}
             </p>
+            {!opportunity.suggestedAnchor && opportunity.rewriteSuggestion ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-6 text-amber-800">
+                <span className="font-semibold">Suggested rewrite:</span> {opportunity.rewriteSuggestion}
+              </p>
+            ) : null}
             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
               <p className="text-sm leading-6 text-slate-600">
                 <span className="font-semibold text-slate-900">Why this works:</span>{" "}

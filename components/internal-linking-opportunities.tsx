@@ -39,7 +39,11 @@ function formatDomain(value: string): string {
   }
 }
 
-function highlightAnchor(snippet: string, anchor: string) {
+function highlightAnchor(snippet: string, anchor: string | null) {
+  if (!anchor) {
+    return <span>{snippet}</span>;
+  }
+
   const lowerSnippet = snippet.toLowerCase();
   const lowerAnchor = anchor.toLowerCase();
   const matchIndex = lowerSnippet.indexOf(lowerAnchor);
@@ -69,7 +73,8 @@ function buildCopySuggestion(opportunity: InternalLinkOpportunity): string {
     `Source URL: ${opportunity.sourceUrl}`,
     `Destination page: ${opportunity.targetTitle}`,
     `Destination URL: ${opportunity.targetUrl}`,
-    `Anchor opportunity: ${opportunity.suggestedAnchor}`,
+    `Anchor opportunity: ${opportunity.suggestedAnchor ?? "No strong anchor found"}`,
+    `Rewrite suggestion: ${opportunity.rewriteSuggestion ?? "n/a"}`,
     `Anchor context: ${opportunity.matchedSnippet}`,
     `Best placement: ${opportunity.placementHint}`,
     `Why this link helps: ${opportunity.reason}`,
@@ -246,9 +251,15 @@ export function InternalLinkingOpportunities({
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700/80 dark:text-sky-200">
                         Anchor opportunity
                       </p>
-                      <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-                        {opportunity.suggestedAnchor}
-                      </p>
+                      {opportunity.suggestedAnchor ? (
+                        <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+                          {opportunity.suggestedAnchor}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                          No strong anchor found. Suggested rewrite available.
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-4 rounded-[22px] bg-slate-50/90 px-4 py-5 text-sm leading-7 text-slate-700 transition-colors duration-300 dark:bg-slate-800 dark:text-slate-200">
@@ -258,6 +269,11 @@ export function InternalLinkingOpportunities({
                       <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-300/95">
                         {highlightAnchor(opportunity.matchedSnippet, opportunity.suggestedAnchor)}
                       </p>
+                      {!opportunity.suggestedAnchor && opportunity.rewriteSuggestion ? (
+                        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+                          {opportunity.rewriteSuggestion}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">

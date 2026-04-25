@@ -17,8 +17,8 @@ interface FindLinkOpportunitiesOptions {
   sourceUrl?: string;
 }
 
-function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string): string {
-  const base = `${sourceUrl}|${targetUrl}|${anchor}`
+function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string | null): string {
+  const base = `${sourceUrl}|${targetUrl}|${anchor || "rewrite"}`
     .toLowerCase()
     .replace(/https?:\/\//g, "")
     .replace(/[^a-z0-9]+/g, "-")
@@ -57,6 +57,18 @@ function sourceAlreadyLinksAnchorToTarget(
     (entry) =>
       entry.normalizedUrl === normalizedTarget &&
       entry.normalizedAnchorText === normalizedAnchor,
+  );
+}
+
+function sourceHasLinkedAnchorPhrase(source: SitePageTopicProfile, anchor: string): boolean {
+  const normalizedAnchor = normalizeAnchorTextForCompare(anchor);
+
+  if (!normalizedAnchor) {
+    return false;
+  }
+
+  return source.existingInternalLinkEntries.some(
+    (entry) => entry.normalizedAnchorText === normalizedAnchor,
   );
 }
 
@@ -149,16 +161,28 @@ function buildPlacementHint(sectionLabel: string, anchor: string): string {
   return `Paragraph under \"${sectionLabel}\".`;
 }
 
+function buildRewriteSuggestion(source: SitePageTopicProfile, target: SitePageTopicProfile): string {
+  return `Rewrite a sentence on "${source.title}" to include a natural contextual mention of "${target.title}" and link it to ${target.url}.`;
+}
+
 function buildReason(
   sourceTitle: string,
   targetTitle: string,
-  anchor: string,
+  anchor: string | null,
   scored: OpportunityScore,
 ): string {
+  if (!anchor) {
+    return `No strong unlinked anchor phrase was found in the current copy, but ${sourceTitle} and ${targetTitle} are strongly related.`;
+  }
+
   return `\"${anchor}\" strongly aligns with ${sourceTitle} and points naturally to ${targetTitle}; topic fit ${Math.round(scored.signals.targetTopicAlignment * 100)}%, source-theme fit ${Math.round(scored.signals.sourceTopicAlignment * 100)}%.`;
 }
 
-function anchorAffinity(anchor: string, targetUrl: string, targetTitle: string): number {
+function anchorAffinity(anchor: string | null, targetUrl: string, targetTitle: string): number {
+  if (!anchor) {
+    return -1;
+  }
+
   const anchorTokens = new Set(tokenize(anchor));
   if (anchorTokens.size === 0) {
     return 0;
@@ -175,6 +199,10 @@ function isBetterAnchorCandidate(
   next: InternalLinkOpportunity,
   current: InternalLinkOpportunity,
 ): boolean {
+  if (Boolean(next.suggestedAnchor) !== Boolean(current.suggestedAnchor)) {
+    return Boolean(next.suggestedAnchor);
+  }
+
   if (next.confidenceScore !== current.confidenceScore) {
     return next.confidenceScore > current.confidenceScore;
   }
@@ -191,6 +219,16 @@ function isBetterAnchorCandidate(
   }
 
   return next.targetTitle.length > current.targetTitle.length;
+}
+
+function hasUsableAnchor(value: string | null | undefined): value is string {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = normalizeAnchorTextForCompare(value);
+
+  return normalized.length > 0 && normalized !== "related page link";
 }
 
 function topicOverlapScore(source: SitePageTopicProfile, target: SitePageTopicProfile): number {
@@ -277,17 +315,18 @@ function buildRelatedCandidates(
 
   return selected
     .map(({ target, score }) => ({
-      id: buildOpportunityId(source.url, target.url, `related-${score}`),
+      id: buildOpportunityId(source.url, target.url, null),
       sourceUrl: source.url,
       sourceTitle: source.title,
       targetUrl: target.url,
       targetTitle: target.title,
-      suggestedAnchor: "Related page link",
+      suggestedAnchor: null,
+      rewriteSuggestion: buildRewriteSuggestion(source, target),
       matchedSnippet: "No strong inline anchor was found in body text.",
       placementHint:
-        "Add this link in a Related services, Further reading, or Useful next steps section.",
+        "No strong anchor found. Suggested rewrite available.",
       reason:
-        "No strong inline phrase match was found, but this page is clearly related and should still be linked for user flow and topical support.",
+        "No strong unlinked anchor phrase was found in current copy. A rewrite is suggested to add a natural contextual link.",
       confidence: score >= 56 ? "Medium" : "Low",
       confidenceScore: score >= 56 ? 60 : 48,
       status: "open",
@@ -381,6 +420,9 @@ export function findLinkOpportunities(
 
     const targetEvaluations: InternalLinkDebugEntry["targetEvaluations"] = [];
     let sourceOpportunities = 0;
+    const blockedSourceAnchors = new Set(
+      source.existingInternalLinkEntries.map((entry) => entry.normalizedAnchorText),
+    );
     const preferredSourcePhrases = [
       ...source.topicPhrases
         .filter((phrase) => phrase.source === "title" || phrase.source === "h1")
@@ -458,6 +500,7 @@ export function findLinkOpportunities(
 
         const suggestion = suggestAnchorText(context.text, target, {
           preferredPhrases: preferredSourcePhrases,
+          blockedAnchors: blockedSourceAnchors,
         });
 
         if (!suggestion) {
@@ -475,6 +518,11 @@ export function findLinkOpportunities(
 
         if (suggestion.anchor.length < 4) {
           diagnostics.droppedByFilter.shortAnchor += 1;
+          continue;
+        }
+
+        if (sourceHasLinkedAnchorPhrase(source, suggestion.anchor)) {
+          diagnostics.droppedByFilter.alreadyLinked += 1;
           continue;
         }
 
@@ -592,6 +640,7 @@ export function findLinkOpportunities(
           targetUrl: target.url,
           targetTitle: target.title,
           suggestedAnchor: winningCandidate.anchor,
+          rewriteSuggestion: null,
           matchedSnippet: snippet,
           placementHint: buildPlacementHint(winningCandidate.sectionLabel, winningCandidate.anchor),
           reason: buildReason(source.title, target.title, winningCandidate.anchor, winningCandidate.scored),
@@ -623,6 +672,43 @@ export function findLinkOpportunities(
       }
 
       if (!matched) {
+        const rewriteSuggestion = buildRewriteSuggestion(source, target);
+        const rewriteKey = `${source.url}|${target.url}|rewrite`;
+
+        if (!seen.has(rewriteKey) && !sourceAlreadyLinksToTarget(source, target.url)) {
+          seen.add(rewriteKey);
+          suggestions.push({
+            id: buildOpportunityId(source.url, target.url, null),
+            sourceUrl: source.url,
+            sourceTitle: source.title,
+            targetUrl: target.url,
+            targetTitle: target.title,
+            suggestedAnchor: null,
+            rewriteSuggestion,
+            matchedSnippet:
+              source.contentDebug.firstExtractedTextChunks[0] ??
+              "No strong unlinked anchor phrase was found in source copy.",
+            placementHint: "No strong anchor found. Suggested rewrite available.",
+            reason: buildReason(source.title, target.title, null, {
+              score: 48,
+              confidence: "Low",
+              signals: {
+                sourceTopicAlignment: 0.45,
+                targetTopicAlignment: 0.45,
+                sourceTargetAlignment: 0.45,
+                sectionRelevance: 0.7,
+                topOfPageWeight: 0.7,
+                anchorNaturalness: 0,
+              },
+            }),
+            confidence: "Low",
+            confidenceScore: 48,
+            status: "open",
+            category: "Internal linking",
+            opportunityType: "contextual",
+          });
+        }
+
         targetEvaluations.push({
           targetUrl: target.url,
           targetTitle: target.title,
@@ -676,7 +762,11 @@ export function findLinkOpportunities(
   const bestBySourceAnchor = new Map<string, InternalLinkOpportunity>();
 
   for (const suggestion of bestBySourceTarget.values()) {
-    const anchorKey = `${suggestion.sourceUrl}|${normalizePhrase(suggestion.suggestedAnchor)}`;
+    const anchorKey = `${suggestion.sourceUrl}|${
+      hasUsableAnchor(suggestion.suggestedAnchor)
+        ? normalizePhrase(suggestion.suggestedAnchor)
+        : normalizePhrase(suggestion.rewriteSuggestion ?? `rewrite-${suggestion.targetUrl}`)
+    }`;
     const existing = bestBySourceAnchor.get(anchorKey);
 
     if (!existing || isBetterAnchorCandidate(suggestion, existing)) {
@@ -698,18 +788,23 @@ export function findLinkOpportunities(
     }
 
     const alreadyLinkedToTarget = sourceAlreadyLinksToTarget(sourceProfile, suggestion.targetUrl);
-    const alreadyLinkedWithSameAnchor = sourceAlreadyLinksAnchorToTarget(
-      sourceProfile,
-      suggestion.targetUrl,
-      suggestion.suggestedAnchor,
-    );
+    const alreadyLinkedWithSameAnchor =
+      hasUsableAnchor(suggestion.suggestedAnchor) &&
+      sourceAlreadyLinksAnchorToTarget(
+        sourceProfile,
+        suggestion.targetUrl,
+        suggestion.suggestedAnchor,
+      );
+    const anchorAlreadyLinkedAnywhere =
+      hasUsableAnchor(suggestion.suggestedAnchor) &&
+      sourceHasLinkedAnchorPhrase(sourceProfile, suggestion.suggestedAnchor);
 
-    if (alreadyLinkedToTarget || alreadyLinkedWithSameAnchor) {
+    if (alreadyLinkedToTarget || alreadyLinkedWithSameAnchor || anchorAlreadyLinkedAnywhere) {
       diagnostics.droppedByFilter.alreadyLinked += 1;
       return false;
     }
 
-    return true;
+    return hasUsableAnchor(suggestion.suggestedAnchor) || Boolean(suggestion.rewriteSuggestion);
   });
   const finalOpportunities = filteredByExistingLinks.slice(0, maxOpportunities);
   diagnostics.duplicateCandidatesRemoved += Math.max(

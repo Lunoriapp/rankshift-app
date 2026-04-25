@@ -27,7 +27,10 @@ function isInternalLinkOpportunity(value: unknown): value is InternalLinkOpportu
     typeof opportunity.sourceTitle === "string" &&
     typeof opportunity.targetUrl === "string" &&
     typeof opportunity.targetTitle === "string" &&
-    typeof opportunity.suggestedAnchor === "string" &&
+    (typeof opportunity.suggestedAnchor === "string" || opportunity.suggestedAnchor === null) &&
+    (typeof opportunity.rewriteSuggestion === "undefined" ||
+      typeof opportunity.rewriteSuggestion === "string" ||
+      opportunity.rewriteSuggestion === null) &&
     typeof opportunity.matchedSnippet === "string" &&
     typeof opportunity.placementHint === "string" &&
     typeof opportunity.reason === "string" &&
