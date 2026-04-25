@@ -888,7 +888,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
             />
 
             {reportSummary.linkOps.length > 0 ? (
-              <InternalLinkOpportunityCards opportunities={reportSummary.linkOpsPreview} maxItems={3} />
+              <InternalLinkOpportunityCards opportunities={reportSummary.linkOpsPreview} maxItems={2} />
             ) : (
               <p className="mt-4 text-sm text-slate-600">
                 No strong contextual links were found in this scan. Add one contextual link from related pages and rerun the audit.

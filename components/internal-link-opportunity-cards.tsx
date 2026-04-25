@@ -10,6 +10,43 @@ interface InternalLinkOpportunityCardsProps {
   maxItems?: number;
 }
 
+function effortLabel(opportunity: InternalLinkOpportunity): string {
+  if (!opportunity.suggestedAnchor) {
+    return "Requires content update";
+  }
+
+  const words = opportunity.suggestedAnchor.trim().split(/\s+/).filter(Boolean).length;
+  if (words <= 2) {
+    return "Takes 2 minutes";
+  }
+
+  return "Quick win";
+}
+
+function whyThisWorks(opportunity: InternalLinkOpportunity): string {
+  if (!opportunity.suggestedAnchor) {
+    return `This page already discusses a related topic, but it needs a clearer mention that naturally points to ${decodeHtmlEntities(opportunity.targetTitle)}.`;
+  }
+
+  return `This anchor matches the topic users are already reading about, so linking it to ${decodeHtmlEntities(opportunity.targetTitle)} strengthens relevance and makes the next step obvious.`;
+}
+
+function expectedOutcome(opportunity: InternalLinkOpportunity): string {
+  if (!opportunity.suggestedAnchor) {
+    return "Adds clearer topical context and gives crawlers a stronger path between related pages.";
+  }
+
+  return "Improves topical authority for the target page and helps search engines discover and prioritize it faster.";
+}
+
+function featuredActionSummary(opportunity: InternalLinkOpportunity): string {
+  if (!opportunity.suggestedAnchor) {
+    return "Add one natural sentence and link it to the destination page.";
+  }
+
+  return `Add an internal link on "${decodeHtmlEntities(opportunity.suggestedAnchor)}" from ${compactUrl(opportunity.sourceUrl)} to ${compactUrl(opportunity.targetUrl)}.`;
+}
+
 function compactUrl(value: string): string {
   try {
     const parsed = new URL(value);
@@ -71,6 +108,8 @@ export function InternalLinkOpportunityCards({
   const primary = sorted.filter((item) => item.confidence !== "Low");
   const visiblePool = showLowConfidence ? [...primary, ...lowConfidence] : primary;
   const visible = typeof maxItems === "number" ? visiblePool.slice(0, maxItems) : visiblePool;
+  const featuredOpportunity =
+    typeof maxItems === "number" && visible.length > 0 ? visible[0] : null;
 
   const copyTextToClipboard = async (value: string): Promise<boolean> => {
     try {
@@ -127,23 +166,58 @@ export function InternalLinkOpportunityCards({
 
   return (
     <div className="mt-5 grid gap-4">
+      {featuredOpportunity ? (
+        <article className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700">
+                Best link to add now
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {featuredOpportunity.suggestedAnchor
+                  ? `"${decodeHtmlEntities(featuredOpportunity.suggestedAnchor)}"`
+                  : "Content improvement opportunity"}
+              </p>
+              <p className="mt-1 text-sm text-slate-700">{featuredActionSummary(featuredOpportunity)}</p>
+            </div>
+            <span className="inline-flex rounded-full border border-indigo-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-indigo-700">
+              {effortLabel(featuredOpportunity)}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+            <p>
+              <span className="font-semibold text-slate-900">Why this works:</span>{" "}
+              {whyThisWorks(featuredOpportunity)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Expected outcome:</span>{" "}
+              {expectedOutcome(featuredOpportunity)}
+            </p>
+          </div>
+        </article>
+      ) : null}
       {visible.map((opportunity) => (
         <article key={opportunity.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Link opportunity</p>
-            {opportunity.confidence ? (
-              <span
-                className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${
-                  opportunity.confidence === "High"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : opportunity.confidence === "Medium"
-                      ? "border-amber-200 bg-amber-50 text-amber-700"
-                      : "border-slate-200 bg-slate-100 text-slate-700"
-                }`}
-              >
-                {opportunity.confidence} confidence
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-700">
+                {effortLabel(opportunity)}
               </span>
-            ) : null}
+              {opportunity.confidence ? (
+                <span
+                  className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${
+                    opportunity.confidence === "High"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : opportunity.confidence === "Medium"
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-slate-200 bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {opportunity.confidence} confidence
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
@@ -155,7 +229,7 @@ export function InternalLinkOpportunityCards({
                 </p>
               ) : (
                 <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700">
-                  No strong anchor found. Suggested rewrite available.
+                  Content improvement opportunity
                 </p>
               )}
             </div>
@@ -184,7 +258,10 @@ export function InternalLinkOpportunityCards({
             </p>
             {!opportunity.suggestedAnchor && opportunity.rewriteSuggestion ? (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-6 text-amber-800">
-                <span className="font-semibold">Suggested rewrite:</span> {opportunity.rewriteSuggestion}
+                <span className="font-semibold">What is missing:</span> This paragraph needs a clear reference to{" "}
+                {decodeHtmlEntities(opportunity.targetTitle)}.
+                <br />
+                <span className="font-semibold">How to fix it:</span> {opportunity.rewriteSuggestion}
               </p>
             ) : null}
             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
@@ -197,10 +274,10 @@ export function InternalLinkOpportunityCards({
                       : "[display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden"
                   }
                 >
-                  {decodeHtmlEntities(opportunity.reason)}
+                  {whyThisWorks(opportunity)}
                 </span>
               </p>
-              {opportunity.reason.length > 140 ? (
+              {whyThisWorks(opportunity).length > 140 ? (
                 <button
                   type="button"
                   onClick={() =>
@@ -214,6 +291,10 @@ export function InternalLinkOpportunityCards({
                   {expandedReasons[opportunity.id] ? "Show less" : "Show more"}
                 </button>
               ) : null}
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                <span className="font-semibold text-slate-900">Expected outcome:</span>{" "}
+                {expectedOutcome(opportunity)}
+              </p>
             </div>
           </div>
 
