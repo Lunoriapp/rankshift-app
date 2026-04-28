@@ -150,6 +150,7 @@ const HARD_EDGE_STOPWORDS = new Set([
 ]);
 
 const PRONOUNS = new Set(["his", "her", "their"]);
+const WEAK_VERBS = new Set(["is", "are", "was", "were", "be", "being", "been"]);
 
 function trimWeakEdgeWords(value: string): string {
   const words = value.split(/\s+/).filter(Boolean);
@@ -297,6 +298,10 @@ function validateAnchorDetailed(anchor: string): { valid: boolean; reasons: stri
     reasons.push("contains-pronoun");
   }
 
+  if (words.some((word) => WEAK_VERBS.has(word))) {
+    reasons.push("contains-weak-verb");
+  }
+
   if (isVagueAnchor(normalized)) {
     reasons.push("generic-anchor");
   }
@@ -325,6 +330,10 @@ function validateAnchorDetailed(anchor: string): { valid: boolean; reasons: stri
 }
 
 export function isValidAnchor(anchor: string): boolean {
+  return validateAnchorDetailed(anchor).valid;
+}
+
+export function isHumanQualityAnchor(anchor: string): boolean {
   return validateAnchorDetailed(anchor).valid;
 }
 
@@ -409,7 +418,7 @@ function generateTopicAnchorFallback(
   target: SitePageTopicProfile,
   brandCandidates: Set<string>,
 ): string | null {
-  const sourceTokens = tokenizeStemmed(sourceText).slice(0, 18);
+  const sourceTokens = tokenizeStemmed(sourceText).slice(0, 28);
   const targetTopic = `${target.title} ${target.h1} ${target.primaryTopic}`;
   const targetTokens = tokenizeStemmed(targetTopic);
   const overlap = sourceTokens.filter((token) => targetTokens.includes(token));
@@ -436,20 +445,25 @@ function generateTopicAnchorFallback(
     if (words.length >= 2) {
       pushIfValid(words.slice(0, 2).join(" "));
       pushIfValid(words.slice(0, 3).join(" "));
+      pushIfValid(words.slice(0, 4).join(" "));
     }
-    if (words.length >= 1) {
+    if (words.length >= 2) {
       pushIfValid(`${words[0]} services`);
     }
   }
 
-  if (overlap.length > 0 && targetTokens.length > 0) {
-    pushIfValid(`${overlap[0]} ${targetTokens[0]}`);
-    if (targetTokens[1]) {
-      pushIfValid(`${targetTokens[0]} ${targetTokens[1]}`);
+  // Shared-topic fallback: only use shared terms when anchored by target topic terms.
+  if (overlap.length > 0 && targetTokens.length >= 2) {
+    const shared = overlap.find((token) => token.length >= 4 && !WEAK_VERBS.has(token));
+    if (shared) {
+      pushIfValid(`${targetTokens[0]} ${shared}`);
+      pushIfValid(`${shared} ${targetTokens[1]}`);
     }
   }
 
-  const ranked = [...candidates].sort((a, b) => b.length - a.length);
+  const ranked = [...candidates]
+    .filter((candidate) => isHumanQualityAnchor(candidate))
+    .sort((a, b) => b.length - a.length);
   return ranked[0] ?? null;
 }
 

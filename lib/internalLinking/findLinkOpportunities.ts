@@ -4,7 +4,7 @@ import { analyseSiteTopics } from "./analyseSiteTopics";
 import { scoreOpportunity } from "./scoreOpportunity";
 import type { OpportunityScore } from "./scoreOpportunity";
 import { buildSnippet, normalizePhrase, phraseWordOverlap, tokenize } from "./shared";
-import { isValidAnchor, suggestAnchorText } from "./suggestAnchorText";
+import { isHumanQualityAnchor, isValidAnchor, suggestAnchorText } from "./suggestAnchorText";
 import { normalizeAnchorTextForCompare, normalizeUrlForCompare } from "./urlCompare";
 import type {
   InternalLinkDebugEntry,
@@ -403,18 +403,12 @@ function fallbackAnchorVariants(
   source: SitePageTopicProfile,
   target: SitePageTopicProfile,
 ): string[] {
-  const sourceCore =
-    normalizeAnchorTextForCompare(
-      source.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ??
-        source.primaryTopic,
-    ) ?? "";
   const targetCore =
     normalizeAnchorTextForCompare(
       target.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ??
         target.primaryTopic,
     ) ?? "";
 
-  const sourceTokens = sourceCore.split(" ").filter(Boolean);
   const targetTokens = targetCore.split(" ").filter(Boolean);
   const variants = new Set<string>();
 
@@ -430,14 +424,18 @@ function fallbackAnchorVariants(
       return;
     }
 
+    if (!isHumanQualityAnchor(words.join(" "))) {
+      return;
+    }
+
     variants.add(words.join(" "));
   };
 
   pushIfValid(targetTokens.slice(0, 4).join(" "));
   pushIfValid(`${targetTokens.slice(0, 3).join(" ")} services`);
   pushIfValid(`${targetTokens.slice(0, 2).join(" ")} support`);
-  pushIfValid(`${sourceTokens.slice(0, 2).join(" ")} ${targetTokens.slice(0, 2).join(" ")}`.trim());
   pushIfValid(`${targetTokens.slice(0, 2).join(" ")} solutions`);
+  pushIfValid(`${targetTokens.slice(0, 2).join(" ")}`);
 
   return [...variants].slice(0, 3);
 }
@@ -1370,7 +1368,7 @@ export function findLinkOpportunities(
 
     const hasInvalidAnchor =
       Boolean(suggestion.suggestedAnchor) &&
-      !isValidAnchor(suggestion.suggestedAnchor ?? "");
+      !isHumanQualityAnchor(suggestion.suggestedAnchor ?? "");
 
     if (
       alreadyLinkedToTarget ||
