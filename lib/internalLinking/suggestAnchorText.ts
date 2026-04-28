@@ -751,6 +751,14 @@ export function suggestAnchorText(
     );
 
     if (!bestValid) {
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[internal-linking][anchor-debug]", {
+          contextSentence: sourceText,
+          targetPageTopic: target.primaryTopic,
+          candidatePhrases: ranked.map((entry) => entry.anchor),
+          selectedAnchor: null,
+        });
+      }
       for (const entry of ranked.slice(0, 3)) {
         const validation = validateAnchorDetailed(entry.anchor);
         if (!validation.valid) {
@@ -758,6 +766,15 @@ export function suggestAnchorText(
         }
       }
       return null;
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[internal-linking][anchor-debug]", {
+        contextSentence: sourceText,
+        targetPageTopic: target.primaryTopic,
+        candidatePhrases: ranked.map((entry) => entry.anchor),
+        selectedAnchor: bestValid.anchor,
+      });
     }
 
     return {
