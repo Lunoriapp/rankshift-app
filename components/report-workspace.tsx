@@ -67,6 +67,17 @@ function getDisplayUrlParts(value: string): {
   }
 }
 
+function compactUrl(value: string): string {
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return `${host}${path}` || host;
+  } catch {
+    return value;
+  }
+}
+
 function normalizeSchemaTypeName(type: string): string {
   const trimmed = type.trim();
 
@@ -385,6 +396,18 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     const imageAltIssues = images
       .filter((image) => getImageAltIssueStatus(image, altCounts) !== null)
       .slice(0, 1);
+    const criticalHighIssueCount = payload.audit.fixes.filter(
+      (fix) => fix.severity === "critical" || fix.severity === "high",
+    ).length;
+    const topIssuesPreview = [...payload.audit.fixes]
+      .sort((a, b) => severityRank[a.severity] - severityRank[b.severity])
+      .slice(0, 4);
+    const topInternalLinksPreview = linkOpsPreview.filter((item) => item.suggestedAnchor).slice(0, 3);
+    const opportunity = payload.audit.score.opportunity;
+    const potentialLift =
+      opportunity && Number.isFinite(opportunity.projectedScore) && Number.isFinite(opportunity.score)
+        ? Math.max(0, Math.round(opportunity.projectedScore - opportunity.score))
+        : null;
 
     return {
       score,
@@ -406,6 +429,10 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
       schemaTypes,
       missingSchemaSignals,
       schemaRecommendations,
+      criticalHighIssueCount,
+      topIssuesPreview,
+      topInternalLinksPreview,
+      potentialLift,
     };
   }, [payload]);
 
@@ -594,52 +621,163 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
           </div>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-6">
-            <div className="space-y-5">
-              <div className="flex flex-wrap items-end justify-between gap-4">
-                <div className="max-w-2xl">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">Audit results</p>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-                    Your page action plan
-                  </h1>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    A high-level summary of your page&apos;s health and highest-impact opportunities.
+            <div className="grid gap-5 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
+              <article className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div className="max-w-2xl">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">Audit Results</p>
+                    <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                      Your page action plan
+                    </h1>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      A high-level summary of your page&apos;s health and highest-impact opportunities.
+                    </p>
+                  </div>
+                  <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                    Live Audit Snapshot
+                  </span>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">URL analysed</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-900 sm:text-base">{displayUrl.host}</p>
+                    {displayUrl.remainder ? (
+                      <p
+                        title={payload.audit.url}
+                        className="mt-1 text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:text-sm"
+                      >
+                        {displayUrl.remainder}
+                      </p>
+                    ) : null}
+                  </article>
+
+                  <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Score</p>
+                    <div className="mt-2 flex items-end gap-2">
+                      <p className="text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.score}</p>
+                      <p className={`pb-1 text-sm font-semibold ${scoreMeta.className}`}>{scoreMeta.label}</p>
+                    </div>
+                  </article>
+
+                  <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Issues found</p>
+                    <div className="mt-2 flex items-end gap-2">
+                      <p className="text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.issueCount}</p>
+                      <p className={`pb-1 text-sm font-semibold ${issuesMeta.className}`}>{issuesMeta.label}</p>
+                    </div>
+                  </article>
+
+                  <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Internal links</p>
+                    <p className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
+                      {reportSummary.totalLinkOps}
+                    </p>
+                  </article>
+                </div>
+              </article>
+
+              <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.25)] sm:p-4">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-2 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+                  </div>
+                  <p className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                    Live audit result
                   </p>
                 </div>
-                <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
-                  Live audit snapshot
-                </span>
-              </div>
 
-              <div className="grid gap-3 md:grid-cols-4">
-                <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 lg:p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">URL analysed</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900 sm:text-base">{displayUrl.host}</p>
-                  {displayUrl.remainder ? (
-                    <p
-                      title={payload.audit.url}
-                      className="mt-1 text-xs leading-5 text-slate-600 [overflow-wrap:anywhere] sm:text-sm"
-                    >
-                      {displayUrl.remainder}
-                    </p>
-                  ) : null}
-                </article>
-
-                <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Score</p>
-                  <div className="mt-2 flex items-end gap-2">
-                    <p className="text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.score}</p>
-                    <p className={`pb-1 text-sm font-semibold ${scoreMeta.className}`}>{scoreMeta.label}</p>
+                <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
+                    <p className="text-xs font-medium text-indigo-700">Generated from your live scan data</p>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
+                      <div className="h-full w-[82%] rounded-full bg-indigo-500" />
+                    </div>
                   </div>
-                </article>
 
-                <article className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Issues found</p>
-                  <div className="mt-2 flex items-end gap-2">
-                    <p className="text-4xl font-semibold tracking-tight text-slate-950">{reportSummary.issueCount}</p>
-                    <p className={`pb-1 text-sm font-semibold ${issuesMeta.className}`}>{issuesMeta.label}</p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Analysed URL</p>
+                      <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">{displayUrl.host}</p>
+                      {displayUrl.remainder ? (
+                        <p className="mt-1 text-xs text-slate-500 [overflow-wrap:anywhere]">{displayUrl.remainder}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl border-2 border-emerald-400 bg-emerald-50 text-slate-900 sm:h-20 sm:w-20 sm:rounded-2xl">
+                      <p className="text-2xl font-semibold leading-none sm:text-3xl">{reportSummary.score}</p>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700">Score</p>
+                    </div>
                   </div>
-                </article>
-              </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-slate-200 px-3 py-3">
+                      <p className="text-xs font-medium text-slate-500">Issues found</p>
+                      <p className="mt-1 text-3xl font-semibold tracking-tight text-rose-600">{reportSummary.issueCount}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 px-3 py-3">
+                      <p className="text-xs font-medium text-slate-500">Critical / High</p>
+                      <p className="mt-1 text-3xl font-semibold tracking-tight text-rose-600">
+                        {reportSummary.criticalHighIssueCount}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 px-3 py-3">
+                      <p className="text-xs font-medium text-slate-500">Link opportunities</p>
+                      <p className="mt-1 text-3xl font-semibold tracking-tight text-indigo-600">
+                        {reportSummary.totalLinkOps}
+                      </p>
+                    </div>
+                    {reportSummary.potentialLift !== null ? (
+                      <div className="rounded-xl border border-slate-200 px-3 py-3 sm:col-span-3">
+                        <p className="text-xs font-medium text-slate-500">Potential lift</p>
+                        <p className="mt-1 text-3xl font-semibold tracking-tight text-emerald-600">
+                          +{reportSummary.potentialLift}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-slate-200 px-3 py-3 sm:col-span-3">
+                        <p className="text-xs font-medium text-slate-500">Next fixes</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-800">
+                          Focus on top issues and highest-impact internal links below.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="hidden gap-3 sm:grid sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Top issues</p>
+                      <div className="mt-3 space-y-2 text-sm text-slate-600">
+                        {reportSummary.topIssuesPreview.length > 0 ? (
+                          reportSummary.topIssuesPreview.map((issue) => (
+                            <p key={issue.id} className="flex items-center gap-2">
+                              <span className="text-rose-500">△</span>
+                              {issue.title}
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-slate-500">No issues available</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Internal links to add</p>
+                      <div className="mt-3 space-y-2 text-sm text-slate-600">
+                        {reportSummary.topInternalLinksPreview.length > 0 ? (
+                          reportSummary.topInternalLinksPreview.map((opportunity) => (
+                            <p key={opportunity.id}>
+                              Add from {compactUrl(opportunity.sourceUrl)} to {compactUrl(opportunity.targetUrl)}
+                            </p>
+                          ))
+                        ) : (
+                          <p className="text-slate-500">No internal link opportunities available</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </aside>
             </div>
           </section>
 
