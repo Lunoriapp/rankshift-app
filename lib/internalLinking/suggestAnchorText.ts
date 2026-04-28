@@ -116,6 +116,27 @@ const FRAGMENT_EDGE_WORDS = new Set([
   "an",
 ]);
 
+const HARD_EDGE_STOPWORDS = new Set([
+  "in",
+  "and",
+  "or",
+  "but",
+  "of",
+  "to",
+  "for",
+  "with",
+  "his",
+  "her",
+  "their",
+  "this",
+  "that",
+  "the",
+  "a",
+  "an",
+]);
+
+const PRONOUNS = new Set(["his", "her", "their"]);
+
 function trimWeakEdgeWords(value: string): string {
   const words = value.split(/\s+/).filter(Boolean);
 
@@ -241,51 +262,67 @@ function isVagueAnchor(anchor: string): boolean {
   );
 }
 
-function isNaturalCompleteAnchor(anchor: string): boolean {
+function validateAnchorDetailed(anchor: string): { valid: boolean; reasons: string[] } {
   const normalized = normalizeWhitespace(anchor).toLowerCase();
   const words = normalized.split(/\s+/).filter(Boolean);
+  const reasons: string[] = [];
 
   if (words.length < 2 || words.length > 5) {
-    return false;
+    reasons.push("word-count-not-2-5");
   }
 
+  if (words.length > 0 && HARD_EDGE_STOPWORDS.has(words[0])) {
+    reasons.push("starts-with-weak-connector");
+  }
+
+  if (words.length > 0 && HARD_EDGE_STOPWORDS.has(words[words.length - 1])) {
+    reasons.push("ends-with-weak-connector");
+  }
+
+  if (words.some((word) => PRONOUNS.has(word))) {
+    reasons.push("contains-pronoun");
+  }
+
+  if (isVagueAnchor(normalized)) {
+    reasons.push("generic-anchor");
+  }
+
+  const meaningfulNounLikeCount = words.filter(
+    (word) => !HARD_EDGE_STOPWORDS.has(word) && !FRAGMENT_EDGE_WORDS.has(word) && word.length >= 4,
+  ).length;
+  if (meaningfulNounLikeCount === 0) {
+    reasons.push("no-meaningful-noun");
+  }
+
+  const middle = words.slice(1, -1);
   if (
-    FRAGMENT_EDGE_WORDS.has(words[0]) ||
-    FRAGMENT_EDGE_WORDS.has(words[words.length - 1])
+    middle.length > 0 &&
+    middle.some((word) => FRAGMENT_EDGE_WORDS.has(word)) &&
+    meaningfulNounLikeCount < 2
   ) {
-    return false;
+    reasons.push("partial-phrase");
   }
 
-  if (normalized.length < 8) {
-    return false;
+  if (!/[a-z]/.test(normalized) || normalized.length < 8) {
+    reasons.push("not-natural-language");
   }
 
-  // Reject fragment-like constructs with connector-heavy middles.
-  if (words.length >= 3) {
-    const middle = words.slice(1, -1);
-    const middleConnectorCount = middle.filter((word) => FRAGMENT_EDGE_WORDS.has(word)).length;
-    if (middleConnectorCount > 0) {
-      const topicHeads = [
-        "sculpture",
-        "sculptures",
-        "commission",
-        "commissions",
-        "services",
-        "service",
-        "agency",
-        "mediation",
-        "recruitment",
-        "seo",
-        "law",
-      ];
-      const hasTopicHead = words.some((word) => topicHeads.some((head) => word.includes(head)));
-      if (!hasTopicHead) {
-        return false;
-      }
-    }
-  }
+  return { valid: reasons.length === 0, reasons };
+}
 
-  return /[a-z]/.test(normalized) && !isVagueAnchor(normalized);
+export function isValidAnchor(anchor: string): boolean {
+  return validateAnchorDetailed(anchor).valid;
+}
+
+function logAnchorRejection(anchor: string, reasons: string[]) {
+  console.debug("[internal-linking][anchor-rejected]", {
+    original: anchor,
+    reasons,
+  });
+}
+
+function isNaturalCompleteAnchor(anchor: string): boolean {
+  return isValidAnchor(anchor);
 }
 
 function normalizeForMatch(value: string): string {
@@ -351,6 +388,55 @@ function expandFragmentAnchorFromSentence(
     .sort((a, b) => b.score - a.score);
 
   return ranked[0]?.candidate ?? null;
+}
+
+function generateTopicAnchorFallback(
+  sourceText: string,
+  target: SitePageTopicProfile,
+  brandCandidates: Set<string>,
+): string | null {
+  const sourceTokens = tokenizeStemmed(sourceText).slice(0, 18);
+  const targetTopic = `${target.title} ${target.h1} ${target.primaryTopic}`;
+  const targetTokens = tokenizeStemmed(targetTopic);
+  const overlap = sourceTokens.filter((token) => targetTokens.includes(token));
+  const phrasePool = [
+    normalizeWhitespace(target.primaryTopic),
+    normalizeWhitespace(target.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ?? ""),
+  ].filter(Boolean);
+  const candidates = new Set<string>();
+
+  const pushIfValid = (value: string) => {
+    const candidate = toNaturalAnchor(value);
+    const validation = validateAnchorDetailed(candidate);
+    if (!validation.valid) {
+      return;
+    }
+    if (isBrandLikeAnchor(candidate, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
+      return;
+    }
+    candidates.add(candidate);
+  };
+
+  for (const phrase of phrasePool) {
+    const words = phrase.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      pushIfValid(words.slice(0, 2).join(" "));
+      pushIfValid(words.slice(0, 3).join(" "));
+    }
+    if (words.length >= 1) {
+      pushIfValid(`${words[0]} services`);
+    }
+  }
+
+  if (overlap.length > 0 && targetTokens.length > 0) {
+    pushIfValid(`${overlap[0]} ${targetTokens[0]}`);
+    if (targetTokens[1]) {
+      pushIfValid(`${targetTokens[0]} ${targetTokens[1]}`);
+    }
+  }
+
+  const ranked = [...candidates].sort((a, b) => b.length - a.length);
+  return ranked[0] ?? null;
 }
 
 function intentBoostForPageType(
@@ -526,17 +612,22 @@ export function suggestAnchorText(
       const repairedAnchor = isNaturalCompleteAnchor(anchor)
         ? anchor
         : expandFragmentAnchorFromSentence(sourceText, anchor, targetTopicTokens);
-      const finalAnchor = repairedAnchor ?? anchor;
+      const fallbackAnchor = generateTopicAnchorFallback(sourceText, target, brandCandidates);
+      const finalAnchor = repairedAnchor ?? fallbackAnchor ?? anchor;
+      const validation = validateAnchorDetailed(finalAnchor);
 
       if (finalAnchor.length < 4) {
+        logAnchorRejection(finalAnchor, ["too-short"]);
         continue;
       }
 
       if (isVagueAnchor(finalAnchor)) {
+        logAnchorRejection(finalAnchor, ["generic-anchor"]);
         continue;
       }
 
-      if (!isNaturalCompleteAnchor(finalAnchor)) {
+      if (!validation.valid) {
+        logAnchorRejection(finalAnchor, validation.reasons);
         continue;
       }
 
@@ -577,17 +668,22 @@ export function suggestAnchorText(
       const repairedAnchor = isNaturalCompleteAnchor(anchor)
         ? anchor
         : expandFragmentAnchorFromSentence(sourceText, anchor, targetTopicTokens);
-      const finalAnchor = repairedAnchor ?? anchor;
+      const fallbackAnchor = generateTopicAnchorFallback(sourceText, target, brandCandidates);
+      const finalAnchor = repairedAnchor ?? fallbackAnchor ?? anchor;
+      const validation = validateAnchorDetailed(finalAnchor);
 
       if (finalAnchor.length < 4) {
+        logAnchorRejection(finalAnchor, ["too-short"]);
         continue;
       }
 
       if (isVagueAnchor(finalAnchor)) {
+        logAnchorRejection(finalAnchor, ["generic-anchor"]);
         continue;
       }
 
-      if (!isNaturalCompleteAnchor(finalAnchor)) {
+      if (!validation.valid) {
+        logAnchorRejection(finalAnchor, validation.reasons);
         continue;
       }
 
@@ -649,12 +745,18 @@ export function suggestAnchorText(
 
     const bestValid = ranked.find(
       (entry) =>
-        isNaturalCompleteAnchor(entry.anchor) &&
+        isValidAnchor(entry.anchor) &&
         !isVagueAnchor(entry.anchor) &&
         !blockedAnchors.has(normalizeAnchorForCompare(entry.anchor)),
     );
 
     if (!bestValid) {
+      for (const entry of ranked.slice(0, 3)) {
+        const validation = validateAnchorDetailed(entry.anchor);
+        if (!validation.valid) {
+          logAnchorRejection(entry.anchor, validation.reasons);
+        }
+      }
       return null;
     }
 

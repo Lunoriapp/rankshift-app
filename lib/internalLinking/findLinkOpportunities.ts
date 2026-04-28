@@ -4,7 +4,7 @@ import { analyseSiteTopics } from "./analyseSiteTopics";
 import { scoreOpportunity } from "./scoreOpportunity";
 import type { OpportunityScore } from "./scoreOpportunity";
 import { buildSnippet, normalizePhrase, phraseWordOverlap, tokenize } from "./shared";
-import { suggestAnchorText } from "./suggestAnchorText";
+import { isValidAnchor, suggestAnchorText } from "./suggestAnchorText";
 import { normalizeAnchorTextForCompare, normalizeUrlForCompare } from "./urlCompare";
 import type {
   InternalLinkDebugEntry,
@@ -1368,7 +1368,22 @@ export function findLinkOpportunities(
       hasUsableAnchor(suggestion.suggestedAnchor) &&
       sourceHasLinkedAnchorPhrase(sourceProfile, suggestion.suggestedAnchor);
 
-    if (alreadyLinkedToTarget || alreadyLinkedWithSameAnchor || anchorAlreadyLinkedAnywhere) {
+    const hasInvalidAnchor =
+      Boolean(suggestion.suggestedAnchor) &&
+      !isValidAnchor(suggestion.suggestedAnchor ?? "");
+
+    if (
+      alreadyLinkedToTarget ||
+      alreadyLinkedWithSameAnchor ||
+      anchorAlreadyLinkedAnywhere ||
+      hasInvalidAnchor
+    ) {
+      if (hasInvalidAnchor) {
+        console.debug("[internal-linking][anchor-rejected]", {
+          original: suggestion.suggestedAnchor,
+          reasons: ["failed-final-safety-pass"],
+        });
+      }
       diagnostics.droppedByFilter.alreadyLinked += 1;
       return false;
     }
@@ -1422,6 +1437,14 @@ export function findLinkOpportunities(
 
         const anchors = fallbackAnchorVariants(source, target);
         for (const anchor of anchors) {
+          if (!isValidAnchor(anchor)) {
+            console.debug("[internal-linking][anchor-rejected]", {
+              original: anchor,
+              reasons: ["fallback-anchor-failed-validation"],
+            });
+            continue;
+          }
+
           if (sourceHasLinkedAnchorPhrase(source, anchor)) {
             continue;
           }
