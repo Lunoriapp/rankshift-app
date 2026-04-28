@@ -161,6 +161,24 @@ function inferPageType(page: SitePageSnapshot): SitePageTopicProfile["pageType"]
   const urlPath = new URL(page.url).pathname.toLowerCase();
   const signals = `${page.title} ${page.h1} ${page.h2s.join(" ")} ${urlPath}`.toLowerCase();
 
+  if (urlPath === "/") {
+    return "homepage";
+  }
+
+  const profileSignals = [
+    "/about",
+    "/team",
+    "/profile",
+    "about us",
+    "our team",
+    "profile",
+    "biography",
+    "who we are",
+  ];
+  if (profileSignals.some((signal) => signals.includes(signal))) {
+    return "profile";
+  }
+
   const blogSignals = ["blog", "news", "guide", "article", "how to", "tips", "resources"];
   if (blogSignals.some((signal) => signals.includes(signal))) {
     return "blog";
@@ -197,7 +215,7 @@ function inferPageType(page: SitePageSnapshot): SitePageTopicProfile["pageType"]
     return "service";
   }
 
-  return "general";
+  return "generic";
 }
 
 export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfile[] {

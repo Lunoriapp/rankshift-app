@@ -36,7 +36,7 @@ export interface SitePageTopicProfile {
   inboundInternalLinkCount: number;
   outboundInternalLinkCount: number;
   commerciallyImportant: boolean;
-  pageType: "service" | "blog" | "ecommerce" | "general";
+  pageType: "service" | "blog" | "ecommerce" | "profile" | "homepage" | "generic";
   indexable: boolean;
 }
 

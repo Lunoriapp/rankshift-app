@@ -26,6 +26,11 @@ interface RankedAnchorCandidate extends AnchorSuggestion {
   score: number;
 }
 
+interface RejectedCandidate {
+  anchor: string;
+  reasons: string[];
+}
+
 const SERVICE_TOPIC_TERMS = new Set([
   "agency",
   "services",
@@ -45,6 +50,15 @@ const SERVICE_TOPIC_TERMS = new Set([
   "design",
   "audit",
   "marketing",
+  "installation",
+  "kitchen",
+  "boots",
+  "walking",
+  "sculptor",
+  "sculpture",
+  "bronze",
+  "mediation",
+  "family",
 ]);
 
 function cleanAnchor(value: string): string {
@@ -439,6 +453,50 @@ function generateTopicAnchorFallback(
   return ranked[0] ?? null;
 }
 
+function extractContextPhraseCandidates(
+  sourceText: string,
+  targetTopicTokens: Set<string>,
+  sourcePageType: SitePageTopicProfile["pageType"],
+): string[] {
+  const words = (sourceText.match(/[a-z0-9&'-]+/gi) ?? []).map((word) =>
+    normalizeWhitespace(word.toLowerCase()),
+  );
+  const candidates = new Set<string>();
+  const rejectWords = new Set(["and", "or", "but", "his", "her", "their", "this", "that"]);
+
+  const pageTypeIntentHeads: Record<SitePageTopicProfile["pageType"], string[]> = {
+    service: ["service", "services", "agency", "consultant", "mediation", "installation", "support"],
+    blog: ["guide", "tips", "how", "strategy", "audit", "overview"],
+    ecommerce: ["boots", "shoes", "product", "products", "category", "collection", "price"],
+    profile: ["specialist", "expert", "sculptor", "lawyer", "consultant", "artist"],
+    homepage: ["services", "solutions", "support", "agency"],
+    generic: ["services", "guide", "support", "solutions", "strategy"],
+  };
+  const intentHeads = pageTypeIntentHeads[sourcePageType] ?? pageTypeIntentHeads.generic;
+
+  for (let size = 2; size <= 5; size += 1) {
+    for (let i = 0; i <= words.length - size; i += 1) {
+      const phrase = toNaturalAnchor(words.slice(i, i + size).join(" "));
+      const phraseWords = phrase.split(/\s+/).filter(Boolean);
+      if (phraseWords.length < 2 || phraseWords.length > 5) {
+        continue;
+      }
+      if (phraseWords.some((word) => rejectWords.has(word))) {
+        continue;
+      }
+
+      const hasIntentHead = intentHeads.some((head) => phrase.includes(head));
+      const targetOverlap = overlapRatio(phrase, targetTopicTokens);
+      if (!hasIntentHead && targetOverlap < 0.34) {
+        continue;
+      }
+      candidates.add(phrase);
+    }
+  }
+
+  return [...candidates];
+}
+
 function intentBoostForPageType(
   anchor: string,
   pageType: SitePageTopicProfile["pageType"],
@@ -571,8 +629,9 @@ export function suggestAnchorText(
     options.brandCandidates instanceof Set
       ? options.brandCandidates
       : new Set((options.brandCandidates ?? []).map((value) => normalizeAnchorForCompare(value)));
-  const sourcePageType = options.sourcePageType ?? "general";
+  const sourcePageType = options.sourcePageType ?? "generic";
   const candidates: AnchorSuggestion[] = [];
+  const rejectedCandidates: RejectedCandidate[] = [];
   const targetSignalText = `${target.title} ${target.h1} ${target.primaryTopic}`;
   const preferredPhrases = (options.preferredPhrases ?? [])
     .filter((phrase) => !isWeakTopicPhrase(phrase.phrase))
@@ -618,16 +677,19 @@ export function suggestAnchorText(
 
       if (finalAnchor.length < 4) {
         logAnchorRejection(finalAnchor, ["too-short"]);
+        rejectedCandidates.push({ anchor: finalAnchor, reasons: ["too-short"] });
         continue;
       }
 
       if (isVagueAnchor(finalAnchor)) {
         logAnchorRejection(finalAnchor, ["generic-anchor"]);
+        rejectedCandidates.push({ anchor: finalAnchor, reasons: ["generic-anchor"] });
         continue;
       }
 
       if (!validation.valid) {
         logAnchorRejection(finalAnchor, validation.reasons);
+        rejectedCandidates.push({ anchor: finalAnchor, reasons: validation.reasons });
         continue;
       }
 
@@ -674,16 +736,19 @@ export function suggestAnchorText(
 
       if (finalAnchor.length < 4) {
         logAnchorRejection(finalAnchor, ["too-short"]);
+        rejectedCandidates.push({ anchor: finalAnchor, reasons: ["too-short"] });
         continue;
       }
 
       if (isVagueAnchor(finalAnchor)) {
         logAnchorRejection(finalAnchor, ["generic-anchor"]);
+        rejectedCandidates.push({ anchor: finalAnchor, reasons: ["generic-anchor"] });
         continue;
       }
 
       if (!validation.valid) {
         logAnchorRejection(finalAnchor, validation.reasons);
+        rejectedCandidates.push({ anchor: finalAnchor, reasons: validation.reasons });
         continue;
       }
 
@@ -728,6 +793,33 @@ export function suggestAnchorText(
     });
   }
 
+  for (const sentencePhrase of extractContextPhraseCandidates(
+    sourceText,
+    targetTopicTokens,
+    sourcePageType,
+  )) {
+    const validation = validateAnchorDetailed(sentencePhrase);
+    if (!validation.valid) {
+      rejectedCandidates.push({ anchor: sentencePhrase, reasons: validation.reasons });
+      continue;
+    }
+    if (blockedAnchors.has(normalizeAnchorForCompare(sentencePhrase))) {
+      continue;
+    }
+    if (
+      isBrandLikeAnchor(sentencePhrase, brandCandidates) &&
+      !isHomepageOrAboutTarget(target.url)
+    ) {
+      continue;
+    }
+    candidates.push({
+      anchor: sentencePhrase,
+      matchType: "close",
+      phraseSource: "body_term",
+      phraseWeight: 0.82,
+    });
+  }
+
   if (candidates.length > 0) {
     const ranked = candidates
       .map((candidate) =>
@@ -753,9 +845,11 @@ export function suggestAnchorText(
     if (!bestValid) {
       if (process.env.NODE_ENV !== "production") {
         console.debug("[internal-linking][anchor-debug]", {
+          detectedPageType: sourcePageType,
           contextSentence: sourceText,
           targetPageTopic: target.primaryTopic,
           candidatePhrases: ranked.map((entry) => entry.anchor),
+          rejectedPhrases: rejectedCandidates,
           selectedAnchor: null,
         });
       }
@@ -770,9 +864,11 @@ export function suggestAnchorText(
 
     if (process.env.NODE_ENV !== "production") {
       console.debug("[internal-linking][anchor-debug]", {
+        detectedPageType: sourcePageType,
         contextSentence: sourceText,
         targetPageTopic: target.primaryTopic,
         candidatePhrases: ranked.map((entry) => entry.anchor),
+        rejectedPhrases: rejectedCandidates,
         selectedAnchor: bestValid.anchor,
       });
     }
