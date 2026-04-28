@@ -700,30 +700,36 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                 </div>
 
                 <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
-                  <h3 className="text-base font-semibold text-slate-900">Continue improving your page</h3>
+                  <h3 className="text-base font-semibold text-slate-900">Track and improve your rankings</h3>
                   <p className="mt-1.5 text-sm leading-6 text-slate-600">
                     Track your progress, uncover more opportunities, and see how your visibility improves over time.
                   </p>
                   <ul className="mt-3 space-y-1.5 text-sm text-slate-700">
-                    <li>• weekly re-scans and tracking</li>
-                    <li>• more internal link opportunities</li>
-                    <li>• deeper AI visibility insights</li>
-                    <li>• exportable reports</li>
+                    <li>• see your score improve each week</li>
+                    <li>• uncover new internal link opportunities</li>
+                    <li>• track AI visibility over time</li>
+                    <li>• export clean reports</li>
                   </ul>
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                     <Link
                       href="/pricing?plan=monthly"
                       className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105"
                     >
-                      Start monthly plan
+                      Start tracking
                     </Link>
-                    <Link
-                      href="/pricing?plan=yearly"
-                      className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
-                    >
-                      Save with yearly plan
-                    </Link>
+                    <div className="relative">
+                      <span className="absolute -top-2 right-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-emerald-700">
+                        Best value
+                      </span>
+                      <Link
+                        href="/pricing?plan=yearly"
+                        className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
+                      >
+                        Save with yearly
+                      </Link>
+                    </div>
                   </div>
+                  <p className="mt-2 text-xs text-slate-500">Cancel anytime. No long-term commitment.</p>
                 </div>
               </article>
 
