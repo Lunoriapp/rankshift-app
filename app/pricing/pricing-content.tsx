@@ -5,28 +5,6 @@ import { useSearchParams } from "next/navigation";
 
 import { MarketingPageShell } from "@/components/marketing-page-shell";
 
-const plans = [
-  {
-    name: "Growth",
-    cadence: "Monthly",
-    bullets: [
-      "Advanced internal linking suggestions",
-      "History and score tracking",
-      "Priority execution workflow",
-    ],
-  },
-  {
-    name: "Best value",
-    cadence: "Yearly",
-    bullets: [
-      "Everything in Growth",
-      "Long-term tracking and trend visibility",
-      "Best-value billing for ongoing execution",
-    ],
-    featured: true,
-  },
-];
-
 export default function PricingContent() {
   const searchParams = useSearchParams();
   const analysedUrl = searchParams.get("analysedUrl");
@@ -57,31 +35,44 @@ export default function PricingContent() {
         </section>
       ) : null}
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {plans.map((plan) => (
-          <article
-            key={plan.name}
-            className={`rounded-xl border p-5 ${
-              plan.featured
-                ? "border-indigo-300 bg-indigo-50"
-                : "border-slate-200 bg-slate-50"
-            }`}
+      <section className="mt-6 rounded-xl border border-indigo-200 bg-indigo-50/60 p-5">
+        <p className="text-sm font-semibold text-slate-900">This page is missing visibility right now</p>
+        <p className="mt-1 text-sm text-slate-700">Start fixing it today</p>
+        <div className="mt-4">
+          <p className="text-sm font-semibold text-slate-900">Growth</p>
+          <p className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">£12/month</p>
+          <p className="mt-1 text-sm text-slate-600">Cancel anytime</p>
+        </div>
+        <div className="mt-4">
+          <Link
+            href="/start-free-audit"
+            className="inline-flex rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
           >
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-600">{plan.name}</p>
-            <p className="mt-2 text-sm font-medium text-slate-600">{plan.cadence}</p>
-            <ul className="mt-4 space-y-2 text-sm text-slate-700">
-              {plan.bullets.map((bullet) => (
-                <li key={bullet}>{bullet}</li>
-              ))}
-            </ul>
-          </article>
-        ))}
-      </div>
+            Fix this page now
+          </Link>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">Takes less than 60 seconds to start</p>
+      </section>
 
-      <div className="mt-8">
+      <section className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <p className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-600">Save with yearly</p>
+        <p className="mt-1 text-sm text-slate-700">
+          Keep progress moving with long-term tracking and lower annual cost.
+        </p>
+        <div className="mt-3">
+          <Link
+            href="/pricing?plan=yearly"
+            className="inline-flex rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+          >
+            Save with yearly
+          </Link>
+        </div>
+      </section>
+
+      <div className="mt-6">
         <Link
           href="/start-free-audit"
-          className="inline-flex rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105"
+          className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
         >
           Start tracking
         </Link>
