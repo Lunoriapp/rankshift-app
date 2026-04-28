@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CopyButton } from "@/components/copy-button";
 import { InternalLinkingEmptyState } from "@/components/internal-linking-empty-state";
@@ -73,7 +73,7 @@ function buildCopySuggestion(opportunity: InternalLinkOpportunity): string {
     `Source URL: ${opportunity.sourceUrl}`,
     `Destination page: ${opportunity.targetTitle}`,
     `Destination URL: ${opportunity.targetUrl}`,
-    `Anchor opportunity: ${opportunity.suggestedAnchor ?? "No strong anchor found"}`,
+    `Anchor opportunity: ${opportunity.suggestedAnchor ?? "Content improvement opportunity"}`,
     `Rewrite suggestion: ${opportunity.rewriteSuggestion ?? "n/a"}`,
     `Anchor context: ${opportunity.matchedSnippet}`,
     `Best placement: ${opportunity.placementHint}`,
@@ -116,6 +116,12 @@ export function InternalLinkingOpportunities({
   const relatedCount = opportunities.filter(
     (opportunity) => opportunity.opportunityType === "related",
   ).length;
+
+  useEffect(() => {
+    for (const opportunity of visibleOpportunities) {
+      console.log("FINAL ANCHOR:", opportunity.suggestedAnchor);
+    }
+  }, [visibleOpportunities]);
 
   return (
     <section className="rounded-[32px] border border-white/60 bg-white/82 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 dark:shadow-[0_20px_60px_rgba(2,6,23,0.7)] sm:p-7">

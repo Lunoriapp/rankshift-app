@@ -18,6 +18,14 @@ interface AuditRequestBody {
   competitorUrl?: unknown;
 }
 
+function jsonNoStore(body: unknown, init?: ResponseInit): NextResponse {
+  const headers = new Headers(init?.headers);
+  headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  headers.set("Pragma", "no-cache");
+  headers.set("Expires", "0");
+  return NextResponse.json(body, { ...init, headers });
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) {
     const message = error.message.trim();
@@ -73,14 +81,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       body = (await request.json()) as AuditRequestBody;
     } catch {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: `${AUDIT_ROUTE_VERSION}: Invalid request body.` },
         { status: 400 },
       );
     }
 
     if (typeof body.url !== "string" || body.url.trim().length === 0) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: `${AUDIT_ROUTE_VERSION}: A valid URL is required.` },
         { status: 400 },
       );
@@ -91,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       normalizedUrl = normalizeUrl(body.url);
     } catch {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: `${AUDIT_ROUTE_VERSION}: Invalid URL.` },
         { status: 400 },
       );
@@ -103,7 +111,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       try {
         normalizedCompetitorUrl = normalizeUrl(body.competitorUrl);
       } catch {
-        return NextResponse.json(
+        return jsonNoStore(
           { error: `${AUDIT_ROUTE_VERSION}: Invalid competitor URL.` },
           { status: 400 },
         );
@@ -114,7 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const resolvedUser = await resolveUser(request);
 
     if (!resolvedUser) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: `${AUDIT_ROUTE_VERSION}: Unauthenticated.` },
         { status: 401 },
       );
@@ -124,7 +132,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       await enforceRateLimit(ip, resolvedUser.token);
     } catch (error) {
       if (error instanceof Error && error.message === "RATE_LIMIT_EXCEEDED") {
-        return NextResponse.json(
+        return jsonNoStore(
           { error: `${AUDIT_ROUTE_VERSION}: Daily request limit reached for this IP.` },
           { status: 429 },
         );
@@ -305,12 +313,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       throw new Error(`AUDIT_WRITE_V3: ${message}`);
     }
 
-    return NextResponse.json({ id, competitorStatus });
+    return jsonNoStore({ id, competitorStatus });
   } catch (error) {
     const message = getErrorMessage(error, "Unexpected audit processing error.");
     console.error("[audit-api] AUDIT_API_V3", { message });
 
-    return NextResponse.json(
+    return jsonNoStore(
       { error: `${AUDIT_ROUTE_VERSION}: ${message}` },
       { status: 500 },
     );

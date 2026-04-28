@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { InternalLinkOpportunity } from "@/lib/internalLinking/types";
 import { decodeHtmlEntities } from "@/lib/decode-html-entities";
@@ -170,6 +170,12 @@ export function InternalLinkOpportunityCards({
   const visible = typeof maxItems === "number" ? visiblePool.slice(0, maxItems) : visiblePool;
   const featuredOpportunity =
     typeof maxItems === "number" && visible.length > 0 ? visible[0] : null;
+
+  useEffect(() => {
+    for (const opportunity of visible) {
+      console.log("FINAL ANCHOR:", opportunity.suggestedAnchor);
+    }
+  }, [visible]);
 
   const copyTextToClipboard = async (value: string): Promise<boolean> => {
     try {
