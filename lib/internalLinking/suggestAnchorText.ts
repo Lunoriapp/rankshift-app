@@ -1,12 +1,5 @@
 import type { SitePageTopicProfile, TopicPhraseCandidate } from "./types";
-import {
-  findClosePhraseMatches,
-  findPhraseMatch,
-  isWeakTopicPhrase,
-  normalizeWhitespace,
-  phraseWordOverlap,
-  tokenizeStemmed,
-} from "./shared";
+import { normalizeWhitespace, tokenizeStemmed } from "./shared";
 
 export interface AnchorSuggestion {
   anchor: string;
@@ -22,8 +15,12 @@ interface SuggestAnchorTextOptions {
   sourcePageType?: SitePageTopicProfile["pageType"];
 }
 
-interface RankedAnchorCandidate extends AnchorSuggestion {
+interface CandidateScore {
+  anchor: string;
   score: number;
+  phraseSource: TopicPhraseCandidate["source"];
+  matchType: AnchorSuggestion["matchType"];
+  phraseWeight: number;
 }
 
 interface RejectedCandidate {
@@ -31,212 +28,76 @@ interface RejectedCandidate {
   reasons: string[];
 }
 
-const SERVICE_TOPIC_TERMS = new Set([
-  "agency",
-  "services",
-  "service",
-  "specialists",
-  "specialist",
-  "lawyers",
-  "lawyer",
-  "consultants",
-  "consultant",
-  "advice",
-  "support",
-  "recruitment",
-  "seo",
-  "family law",
-  "web design",
-  "design",
-  "audit",
-  "marketing",
-  "installation",
-  "kitchen",
-  "boots",
-  "walking",
-  "sculptor",
-  "sculpture",
-  "bronze",
-  "mediation",
-  "family",
-]);
-
-function cleanAnchor(value: string): string {
-  return normalizeWhitespace(value.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, ""));
-}
-
-const WEAK_EDGE_WORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "the",
-  "to",
-  "for",
-  "of",
+const EDGE_STOPWORDS = new Set([
   "in",
-  "on",
-  "with",
-  "by",
-  "at",
-  "from",
-  "your",
-  "our",
-  "their",
-  "this",
-  "that",
-  "these",
-  "those",
-]);
-
-const VAGUE_ANCHORS = new Set([
-  "related page link",
-  "click here",
-  "learn more",
-  "read more",
-  "our services",
-  "our service",
-  "find out more",
-  "discover more",
-  "more info",
-  "more information",
-  "this page",
-  "this article",
-]);
-
-const FRAGMENT_EDGE_WORDS = new Set([
   "and",
   "or",
   "but",
-  "so",
-  "because",
-  "with",
-  "without",
-  "for",
-  "to",
   "of",
-  "in",
+  "to",
+  "for",
+  "with",
+  "his",
+  "her",
+  "their",
+  "this",
+  "that",
+  "the",
+  "a",
+  "an",
+]);
+
+const FRAGMENT_WORDS = new Set([
+  ...EDGE_STOPWORDS,
   "on",
   "at",
   "by",
   "from",
   "into",
-  "his",
-  "her",
-  "their",
-  "this",
-  "that",
-  "the",
-  "a",
-  "an",
+  "who",
 ]);
 
-const HARD_EDGE_STOPWORDS = new Set([
-  "in",
-  "and",
-  "or",
-  "but",
-  "of",
-  "to",
-  "for",
-  "with",
-  "his",
-  "her",
-  "their",
-  "this",
-  "that",
-  "the",
-  "a",
-  "an",
+const WEAK_VERBS = new Set(["is", "are", "was", "were", "be", "being", "been", "can"]);
+const PRONOUNS = new Set(["his", "her", "their", "who"]);
+const CONTACT_TERMS = new Set(["call", "email", "contact", "phone", "tel", "reach"]);
+const GENERIC_ANCHORS = new Set([
+  "click here",
+  "read more",
+  "learn more",
+  "find out more",
+  "this page",
+  "related page link",
 ]);
 
-const PRONOUNS = new Set(["his", "her", "their"]);
-const WEAK_VERBS = new Set(["is", "are", "was", "were", "be", "being", "been"]);
+const NOUNISH_TERMS = new Set([
+  "service",
+  "services",
+  "agency",
+  "recruitment",
+  "mediation",
+  "law",
+  "sculpture",
+  "sculptures",
+  "sculptor",
+  "bronze",
+  "audit",
+  "seo",
+  "boots",
+  "installation",
+  "studio",
+  "biography",
+  "profile",
+  "consultant",
+  "category",
+  "product",
+]);
 
-function trimWeakEdgeWords(value: string): string {
-  const words = value.split(/\s+/).filter(Boolean);
-
-  while (words.length > 1 && WEAK_EDGE_WORDS.has(words[0].toLowerCase())) {
-    words.shift();
-  }
-
-  while (words.length > 1 && WEAK_EDGE_WORDS.has(words[words.length - 1].toLowerCase())) {
-    words.pop();
-  }
-
-  return words.join(" ");
+function normalizeAnchor(value: string): string {
+  return normalizeWhitespace(value.toLowerCase().replace(/[^a-z0-9\s'&-]+/g, " "));
 }
 
-function toNaturalAnchor(rawMatch: string): string {
-  const cleaned = cleanAnchor(trimWeakEdgeWords(rawMatch));
-  const words = cleaned.split(/\s+/).filter(Boolean);
-
-  if (words.length <= 5) {
-    return cleaned;
-  }
-
-  return words.slice(0, 4).join(" ");
-}
-
-function overlapRatio(anchor: string, topicTokens: Set<string>): number {
-  if (topicTokens.size === 0) {
-    return 0;
-  }
-
-  const anchorTokens = new Set(tokenizeStemmed(anchor));
-
-  if (anchorTokens.size === 0) {
-    return 0;
-  }
-
-  let overlapCount = 0;
-
-  for (const token of anchorTokens) {
-    if (topicTokens.has(token)) {
-      overlapCount += 1;
-    }
-  }
-
-  return overlapCount / anchorTokens.size;
-}
-
-function naturalLengthScore(anchor: string): number {
-  const words = anchor.split(/\s+/).filter(Boolean).length;
-
-  if (words >= 2 && words <= 5) {
-    return 1;
-  }
-
-  if (words === 1 || words === 6) {
-    return 0.7;
-  }
-
-  return 0.45;
-}
-
-function serviceTopicTermBoost(anchor: string): number {
-  const normalized = normalizeWhitespace(anchor).toLowerCase();
-  let matches = 0;
-
-  for (const term of SERVICE_TOPIC_TERMS) {
-    if (normalized.includes(term)) {
-      matches += 1;
-    }
-  }
-
-  if (matches >= 2) {
-    return 1;
-  }
-
-  if (matches === 1) {
-    return 0.76;
-  }
-
-  return 0.35;
-}
-
-function isBrandLikeAnchor(anchor: string, brandCandidates: Set<string>): boolean {
-  const normalized = normalizeWhitespace(anchor).toLowerCase();
-
+function isBrandLike(anchor: string, brandCandidates: Set<string>): boolean {
+  const normalized = normalizeAnchor(anchor);
   if (!normalized) {
     return false;
   }
@@ -249,7 +110,6 @@ function isBrandLikeAnchor(anchor: string, brandCandidates: Set<string>): boolea
     if (brand.length < 4) {
       return false;
     }
-
     return normalized === brand || normalized.startsWith(`${brand} `) || normalized.endsWith(` ${brand}`);
   });
 }
@@ -263,22 +123,8 @@ function isHomepageOrAboutTarget(targetUrl: string): boolean {
   }
 }
 
-function isVagueAnchor(anchor: string): boolean {
-  const normalized = normalizeWhitespace(anchor).toLowerCase();
-
-  if (VAGUE_ANCHORS.has(normalized)) {
-    return true;
-  }
-
-  return (
-    normalized.startsWith("learn more") ||
-    normalized.startsWith("read more") ||
-    normalized.startsWith("click here")
-  );
-}
-
 function validateAnchorDetailed(anchor: string): { valid: boolean; reasons: string[] } {
-  const normalized = normalizeWhitespace(anchor).toLowerCase();
+  const normalized = normalizeAnchor(anchor);
   const words = normalized.split(/\s+/).filter(Boolean);
   const reasons: string[] = [];
 
@@ -286,44 +132,52 @@ function validateAnchorDetailed(anchor: string): { valid: boolean; reasons: stri
     reasons.push("word-count-not-2-5");
   }
 
-  if (words.length > 0 && HARD_EDGE_STOPWORDS.has(words[0])) {
-    reasons.push("starts-with-weak-connector");
+  if (words.length > 0 && EDGE_STOPWORDS.has(words[0])) {
+    reasons.push("starts-with-stopword");
   }
 
-  if (words.length > 0 && HARD_EDGE_STOPWORDS.has(words[words.length - 1])) {
-    reasons.push("ends-with-weak-connector");
+  if (words.length > 0 && EDGE_STOPWORDS.has(words[words.length - 1])) {
+    reasons.push("ends-with-stopword");
+  }
+
+  if (words.some((word) => WEAK_VERBS.has(word))) {
+    reasons.push("contains-verb");
   }
 
   if (words.some((word) => PRONOUNS.has(word))) {
     reasons.push("contains-pronoun");
   }
 
-  if (words.some((word) => WEAK_VERBS.has(word))) {
-    reasons.push("contains-weak-verb");
+  if (words.some((word) => CONTACT_TERMS.has(word))) {
+    reasons.push("contains-contact-term");
   }
 
-  if (isVagueAnchor(normalized)) {
+  if (words.some((word) => /\d/.test(word))) {
+    reasons.push("contains-number");
+  }
+
+  if (GENERIC_ANCHORS.has(normalized)) {
     reasons.push("generic-anchor");
   }
 
-  const meaningfulNounLikeCount = words.filter(
-    (word) => !HARD_EDGE_STOPWORDS.has(word) && !FRAGMENT_EDGE_WORDS.has(word) && word.length >= 4,
-  ).length;
-  if (meaningfulNounLikeCount === 0) {
+  const meaningfulNounish = words.filter(
+    (word) => word.length >= 4 && !FRAGMENT_WORDS.has(word) && !WEAK_VERBS.has(word),
+  );
+  const nounishHintCount = words.filter((word) => NOUNISH_TERMS.has(word)).length;
+  if (meaningfulNounish.length === 0 && nounishHintCount === 0) {
     reasons.push("no-meaningful-noun");
   }
 
-  const middle = words.slice(1, -1);
-  if (
-    middle.length > 0 &&
-    middle.some((word) => FRAGMENT_EDGE_WORDS.has(word)) &&
-    meaningfulNounLikeCount < 2
-  ) {
-    reasons.push("partial-phrase");
+  if (words.length >= 3) {
+    const middle = words.slice(1, -1);
+    const middleFragments = middle.filter((word) => FRAGMENT_WORDS.has(word)).length;
+    if (middleFragments > 0 && meaningfulNounish.length < 2 && nounishHintCount < 1) {
+      reasons.push("partial-phrase");
+    }
   }
 
-  if (!/[a-z]/.test(normalized) || normalized.length < 8) {
-    reasons.push("not-natural-language");
+  if (normalized.length < 8) {
+    reasons.push("too-short-for-natural-anchor");
   }
 
   return { valid: reasons.length === 0, reasons };
@@ -337,173 +191,42 @@ export function isHumanQualityAnchor(anchor: string): boolean {
   return validateAnchorDetailed(anchor).valid;
 }
 
-function logAnchorRejection(anchor: string, reasons: string[]) {
-  console.debug("[internal-linking][anchor-rejected]", {
-    original: anchor,
-    reasons,
-  });
+function logAnchorRejected(anchor: string, reasons: string[]) {
+  console.debug("[internal-linking][anchor-rejected]", { original: anchor, reasons });
 }
 
-function isNaturalCompleteAnchor(anchor: string): boolean {
-  return isValidAnchor(anchor);
+function tokenizeWords(sourceText: string): string[] {
+  return (sourceText.match(/[a-z0-9'&-]+/gi) ?? []).map((word) => normalizeAnchor(word));
 }
 
-function normalizeForMatch(value: string): string {
-  return normalizeWhitespace(value.toLowerCase().replace(/[^a-z0-9\s'-]+/g, " "));
-}
-
-function expandFragmentAnchorFromSentence(
-  sourceText: string,
-  anchor: string,
-  targetTopicTokens: Set<string>,
-): string | null {
-  const rawWords = normalizeWhitespace(sourceText).split(/\s+/).filter(Boolean);
-  const normWords = rawWords.map((word) => normalizeForMatch(word));
-  const anchorWords = normalizeForMatch(anchor).split(/\s+/).filter(Boolean);
-
-  if (rawWords.length < 2 || anchorWords.length === 0) {
-    return null;
-  }
-
-  let matchStart = -1;
-  for (let i = 0; i <= normWords.length - anchorWords.length; i += 1) {
-    if (normWords.slice(i, i + anchorWords.length).join(" ") === anchorWords.join(" ")) {
-      matchStart = i;
-      break;
-    }
-  }
-
-  if (matchStart === -1) {
-    return null;
-  }
-
-  const matchEnd = matchStart + anchorWords.length - 1;
+function extractCandidateNounPhrasesFromSentence(sourceText: string): string[] {
+  const words = tokenizeWords(sourceText).filter(Boolean);
   const candidates = new Set<string>();
-
-  for (let size = 2; size <= 5; size += 1) {
-    for (let start = Math.max(0, matchEnd - size + 1); start <= matchStart; start += 1) {
-      const end = start + size - 1;
-      if (end >= rawWords.length || start > matchStart || end < matchEnd) {
-        continue;
-      }
-
-      const candidate = toNaturalAnchor(rawWords.slice(start, end + 1).join(" "));
-      if (!isNaturalCompleteAnchor(candidate)) {
-        continue;
-      }
-
-      candidates.add(candidate);
-    }
-  }
-
-  if (candidates.size === 0) {
-    return null;
-  }
-
-  const ranked = [...candidates]
-    .map((candidate) => ({
-      candidate,
-      score:
-        overlapRatio(candidate, targetTopicTokens) * 0.58 +
-        serviceTopicTermBoost(candidate) * 0.26 +
-        naturalLengthScore(candidate) * 0.16,
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  return ranked[0]?.candidate ?? null;
-}
-
-function generateTopicAnchorFallback(
-  sourceText: string,
-  target: SitePageTopicProfile,
-  brandCandidates: Set<string>,
-): string | null {
-  const sourceTokens = tokenizeStemmed(sourceText).slice(0, 28);
-  const targetTopic = `${target.title} ${target.h1} ${target.primaryTopic}`;
-  const targetTokens = tokenizeStemmed(targetTopic);
-  const overlap = sourceTokens.filter((token) => targetTokens.includes(token));
-  const phrasePool = [
-    normalizeWhitespace(target.primaryTopic),
-    normalizeWhitespace(target.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ?? ""),
-  ].filter(Boolean);
-  const candidates = new Set<string>();
-
-  const pushIfValid = (value: string) => {
-    const candidate = toNaturalAnchor(value);
-    const validation = validateAnchorDetailed(candidate);
-    if (!validation.valid) {
-      return;
-    }
-    if (isBrandLikeAnchor(candidate, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
-      return;
-    }
-    candidates.add(candidate);
-  };
-
-  for (const phrase of phrasePool) {
-    const words = phrase.split(/\s+/).filter(Boolean);
-    if (words.length >= 2) {
-      pushIfValid(words.slice(0, 2).join(" "));
-      pushIfValid(words.slice(0, 3).join(" "));
-      pushIfValid(words.slice(0, 4).join(" "));
-    }
-    if (words.length >= 2) {
-      pushIfValid(`${words[0]} services`);
-    }
-  }
-
-  // Shared-topic fallback: only use shared terms when anchored by target topic terms.
-  if (overlap.length > 0 && targetTokens.length >= 2) {
-    const shared = overlap.find((token) => token.length >= 4 && !WEAK_VERBS.has(token));
-    if (shared) {
-      pushIfValid(`${targetTokens[0]} ${shared}`);
-      pushIfValid(`${shared} ${targetTokens[1]}`);
-    }
-  }
-
-  const ranked = [...candidates]
-    .filter((candidate) => isHumanQualityAnchor(candidate))
-    .sort((a, b) => b.length - a.length);
-  return ranked[0] ?? null;
-}
-
-function extractContextPhraseCandidates(
-  sourceText: string,
-  targetTopicTokens: Set<string>,
-  sourcePageType: SitePageTopicProfile["pageType"],
-): string[] {
-  const words = (sourceText.match(/[a-z0-9&'-]+/gi) ?? []).map((word) =>
-    normalizeWhitespace(word.toLowerCase()),
-  );
-  const candidates = new Set<string>();
-  const rejectWords = new Set(["and", "or", "but", "his", "her", "their", "this", "that"]);
-
-  const pageTypeIntentHeads: Record<SitePageTopicProfile["pageType"], string[]> = {
-    service: ["service", "services", "agency", "consultant", "mediation", "installation", "support"],
-    blog: ["guide", "tips", "how", "strategy", "audit", "overview"],
-    ecommerce: ["boots", "shoes", "product", "products", "category", "collection", "price"],
-    profile: ["specialist", "expert", "sculptor", "lawyer", "consultant", "artist"],
-    homepage: ["services", "solutions", "support", "agency"],
-    generic: ["services", "guide", "support", "solutions", "strategy"],
-  };
-  const intentHeads = pageTypeIntentHeads[sourcePageType] ?? pageTypeIntentHeads.generic;
 
   for (let size = 2; size <= 5; size += 1) {
     for (let i = 0; i <= words.length - size; i += 1) {
-      const phrase = toNaturalAnchor(words.slice(i, i + size).join(" "));
-      const phraseWords = phrase.split(/\s+/).filter(Boolean);
-      if (phraseWords.length < 2 || phraseWords.length > 5) {
-        continue;
-      }
-      if (phraseWords.some((word) => rejectWords.has(word))) {
+      const window = words.slice(i, i + size);
+
+      if (window.some((word) => WEAK_VERBS.has(word) || CONTACT_TERMS.has(word) || /\d/.test(word))) {
         continue;
       }
 
-      const hasIntentHead = intentHeads.some((head) => phrase.includes(head));
-      const targetOverlap = overlapRatio(phrase, targetTopicTokens);
-      if (!hasIntentHead && targetOverlap < 0.34) {
+      const last = window[window.length - 1] ?? "";
+      const first = window[0] ?? "";
+      if (EDGE_STOPWORDS.has(first) || EDGE_STOPWORDS.has(last)) {
         continue;
       }
+
+      const middle = window.slice(1, -1);
+      if (middle.some((word) => PRONOUNS.has(word))) {
+        continue;
+      }
+
+      const phrase = normalizeWhitespace(window.join(" "));
+      if (!phrase) {
+        continue;
+      }
+
       candidates.add(phrase);
     }
   }
@@ -511,115 +234,120 @@ function extractContextPhraseCandidates(
   return [...candidates];
 }
 
-function intentBoostForPageType(
-  anchor: string,
-  pageType: SitePageTopicProfile["pageType"],
-): number {
-  const normalized = normalizeWhitespace(anchor).toLowerCase();
-
-  const serviceIntentTerms = [
-    "service",
-    "services",
-    "agency",
-    "consultant",
-    "consulting",
-    "law",
-    "mediation",
-    "support",
-  ];
-  const informationalTerms = ["how", "guide", "tips", "checklist", "best", "what is", "why"];
-  const ecommerceTerms = ["buy", "shop", "product", "category", "collection", "price"];
-
-  const matches = (terms: string[]) => terms.filter((term) => normalized.includes(term)).length;
-
-  if (pageType === "service") {
-    return Math.min(1, 0.45 + matches(serviceIntentTerms) * 0.25);
-  }
-
-  if (pageType === "blog") {
-    return Math.min(1, 0.4 + matches(informationalTerms) * 0.28);
-  }
-
-  if (pageType === "ecommerce") {
-    return Math.min(1, 0.42 + matches(ecommerceTerms) * 0.28);
-  }
-
-  return 0.55;
-}
-
-function rankCandidate(
-  candidate: AnchorSuggestion,
+function scoreAgainstTarget(
+  candidate: string,
   target: SitePageTopicProfile,
   sourcePageType: SitePageTopicProfile["pageType"],
-  titleTopicTokens: Set<string>,
-  h1TopicTokens: Set<string>,
-  primaryTopicTokens: Set<string>,
-  brandCandidates: Set<string>,
-): RankedAnchorCandidate {
-  const matchScore =
-    candidate.matchType === "exact" ? 1 : candidate.matchType === "close" ? 0.82 : 0.45;
-  const titleAffinity = overlapRatio(candidate.anchor, titleTopicTokens);
-  const h1Affinity = overlapRatio(candidate.anchor, h1TopicTokens);
-  const primaryTopicAffinity = overlapRatio(candidate.anchor, primaryTopicTokens);
-  const lengthScore = naturalLengthScore(candidate.anchor);
-  const serviceBoost = serviceTopicTermBoost(candidate.anchor);
-  const completePhraseScore = isNaturalCompleteAnchor(candidate.anchor) ? 1 : 0;
-  const intentBoost = intentBoostForPageType(candidate.anchor, sourcePageType);
-  const brandPenalty = isBrandLikeAnchor(candidate.anchor, brandCandidates)
-    ? isHomepageOrAboutTarget(target.url)
-      ? 0.55
-      : 1.45
-    : 0;
+): number {
+  const candidateTokens = new Set(tokenizeStemmed(candidate));
+  const targetTitleTokens = new Set(tokenizeStemmed(target.title));
+  const targetSlugTokens = new Set(tokenizeStemmed(new URL(target.url).pathname));
+  const targetHeadingTokens = new Set(tokenizeStemmed(`${target.h1} ${target.h2s.join(" ")}`));
 
-  return {
-    ...candidate,
-    score:
-      matchScore * 0.28 +
-      candidate.phraseWeight * 0.18 +
-      titleAffinity * 0.22 +
-      h1Affinity * 0.12 +
-      primaryTopicAffinity * 0.09 +
-      serviceBoost * 0.11 +
-      completePhraseScore * 0.12 +
-      intentBoost * 0.1 +
-      lengthScore * 0.08 -
-      brandPenalty * 0.34,
-  };
+  const overlap = (a: Set<string>, b: Set<string>) => [...a].filter((token) => b.has(token)).length;
+  const titleMatch = overlap(candidateTokens, targetTitleTokens);
+  const slugMatch = overlap(candidateTokens, targetSlugTokens);
+  const headingMatch = overlap(candidateTokens, targetHeadingTokens);
+
+  const words = candidate.split(/\s+/).filter(Boolean);
+  const lengthScore = words.length >= 2 && words.length <= 4 ? 1 : 0.8;
+  const nounishScore = words.filter((word) => NOUNISH_TERMS.has(word)).length;
+
+  const pageTypeBoost = (() => {
+    const normalized = normalizeAnchor(candidate);
+    if (sourcePageType === "service") {
+      return /service|agency|mediation|installation|consultant|audit/.test(normalized) ? 1 : 0.4;
+    }
+    if (sourcePageType === "blog") {
+      return /guide|strategy|audit|how/.test(normalized) ? 1 : 0.4;
+    }
+    if (sourcePageType === "ecommerce") {
+      return /boots|product|category|collection|shop/.test(normalized) ? 1 : 0.4;
+    }
+    if (sourcePageType === "profile") {
+      return /sculptor|artist|expert|specialist|biography|profile/.test(normalized) ? 1 : 0.45;
+    }
+    if (sourcePageType === "homepage") {
+      return /services|solutions|agency|support/.test(normalized) ? 1 : 0.45;
+    }
+    return 0.6;
+  })();
+
+  return titleMatch * 6 + slugMatch * 7 + headingMatch * 5 + nounishScore * 2 + lengthScore * 2 + pageTypeBoost * 3;
 }
 
-function normalizeAnchorForCompare(value: string): string {
-  return normalizeWhitespace(value).toLowerCase();
-}
+function expandBrokenPhraseWithinSentence(sourceText: string, anchor: string): string | null {
+  const words = tokenizeWords(sourceText).filter(Boolean);
+  const anchorWords = tokenizeWords(anchor).filter(Boolean);
+  if (words.length === 0 || anchorWords.length === 0) {
+    return null;
+  }
 
-function extractNounPhraseCandidates(
-  sourceText: string,
-  targetTopicTokens: Set<string>,
-): string[] {
-  const words = (sourceText.match(/[a-z0-9&'-]+/gi) ?? [])
-    .map((word) => normalizeWhitespace(word))
-    .filter((word) => word.length >= 2);
-  const candidates = new Set<string>();
+  let start = -1;
+  for (let i = 0; i <= words.length - anchorWords.length; i += 1) {
+    if (words.slice(i, i + anchorWords.length).join(" ") === anchorWords.join(" ")) {
+      start = i;
+      break;
+    }
+  }
+  if (start === -1) {
+    return null;
+  }
+
+  const end = start + anchorWords.length - 1;
+  const repaired: string[] = [];
 
   for (let size = 2; size <= 5; size += 1) {
-    for (let index = 0; index <= words.length - size; index += 1) {
-      const phrase = toNaturalAnchor(words.slice(index, index + size).join(" "));
-      const tokens = tokenizeStemmed(phrase);
-
-      if (phrase.length < 4 || isVagueAnchor(phrase) || tokens.length < 2) {
+    for (let left = Math.max(0, end - size + 1); left <= start; left += 1) {
+      const right = left + size - 1;
+      if (right >= words.length || left > start || right < end) {
         continue;
       }
-
-      const overlap = overlapRatio(phrase, targetTopicTokens);
-
-      if (overlap < 0.34) {
-        continue;
-      }
-
-      candidates.add(phrase);
+      const phrase = normalizeWhitespace(words.slice(left, right + 1).join(" "));
+      repaired.push(phrase);
     }
   }
 
-  return [...candidates];
+  for (const phrase of repaired) {
+    if (isHumanQualityAnchor(phrase)) {
+      return phrase;
+    }
+  }
+
+  return null;
+}
+
+function generateTopicFallbackAnchor(target: SitePageTopicProfile, brandCandidates: Set<string>): string | null {
+  const topicSignals = [
+    normalizeWhitespace(target.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ?? ""),
+    normalizeWhitespace(target.primaryTopic),
+    normalizeWhitespace(target.h1),
+  ].filter(Boolean);
+
+  const candidates = new Set<string>();
+
+  for (const signal of topicSignals) {
+    const words = tokenizeWords(signal).filter(Boolean);
+    if (words.length >= 2) {
+      candidates.add(normalizeWhitespace(words.slice(0, 2).join(" ")));
+      candidates.add(normalizeWhitespace(words.slice(0, 3).join(" ")));
+    }
+    if (words.length >= 3) {
+      candidates.add(normalizeWhitespace(words.slice(1, 4).join(" ")));
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (!isHumanQualityAnchor(candidate)) {
+      continue;
+    }
+    if (isBrandLike(candidate, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
+      continue;
+    }
+    return candidate;
+  }
+
+  return null;
 }
 
 export function suggestAnchorText(
@@ -627,273 +355,101 @@ export function suggestAnchorText(
   target: SitePageTopicProfile,
   options: SuggestAnchorTextOptions = {},
 ): AnchorSuggestion | null {
-  const titleTopicTokens = new Set(tokenizeStemmed(target.primaryTopic));
-  const h1TopicTokens = new Set(tokenizeStemmed(target.h1));
-  const primaryTopicTokens = new Set(tokenizeStemmed(target.primaryTopic));
-  const targetTopicTokens = new Set(
-    tokenizeStemmed(`${target.title} ${target.h1} ${target.primaryTopic}`),
-  );
   const blockedAnchors =
     options.blockedAnchors instanceof Set
-      ? new Set(
-          [...options.blockedAnchors].map((value) => normalizeAnchorForCompare(value)),
-        )
-      : new Set((options.blockedAnchors ?? []).map((value) => normalizeAnchorForCompare(value)));
+      ? new Set([...options.blockedAnchors].map((value) => normalizeAnchor(value)))
+      : new Set((options.blockedAnchors ?? []).map((value) => normalizeAnchor(value)));
   const brandCandidates =
     options.brandCandidates instanceof Set
       ? options.brandCandidates
-      : new Set((options.brandCandidates ?? []).map((value) => normalizeAnchorForCompare(value)));
+      : new Set((options.brandCandidates ?? []).map((value) => normalizeAnchor(value)));
   const sourcePageType = options.sourcePageType ?? "generic";
-  const candidates: AnchorSuggestion[] = [];
-  const rejectedCandidates: RejectedCandidate[] = [];
-  const targetSignalText = `${target.title} ${target.h1} ${target.primaryTopic}`;
-  const preferredPhrases = (options.preferredPhrases ?? [])
-    .filter((phrase) => !isWeakTopicPhrase(phrase.phrase))
-    .filter((phrase) => phraseWordOverlap(targetSignalText, phrase.phrase) >= 0.55)
-    .filter((phrase) => {
-      const words = normalizeWhitespace(phrase.phrase).split(/\s+/).filter(Boolean).length;
-      return words >= 2 && words <= 5;
-    })
-    .filter((phrase) => !isBrandLikeAnchor(phrase.phrase, brandCandidates))
-    .map((phrase) => ({
-      ...phrase,
-      // Keep source phrase hints lightweight so topical in-sentence noun phrases can win.
-      weight: Math.min(0.72, Math.max(0.58, phrase.weight * 0.75)),
-    }));
-  const phrasePool = [...preferredPhrases, ...target.topicPhrases];
-  const seenPhrases = new Set<string>();
-  const uniquePhrasePool = phrasePool.filter((phrase) => {
-    const key = phrase.phrase.trim().toLowerCase();
 
-    if (seenPhrases.has(key)) {
-      return false;
-    }
+  // Stage 1: extract candidate noun/topic phrases from full context sentence.
+  const rawCandidates = extractCandidateNounPhrasesFromSentence(sourceText);
+  const rejected: RejectedCandidate[] = [];
+  const scored: CandidateScore[] = [];
 
-    seenPhrases.add(key);
-    return true;
-  });
+  // Stage 2 + 3: reject invalid, repair if needed, score to target.
+  for (const raw of rawCandidates) {
+    let candidate = raw;
+    let validation = validateAnchorDetailed(candidate);
 
-  for (const phrase of uniquePhrasePool) {
-    if (isWeakTopicPhrase(phrase.phrase)) {
-      continue;
-    }
-
-    const exactMatch = findPhraseMatch(sourceText, phrase.phrase);
-
-    if (exactMatch && exactMatch.length >= 4) {
-      const anchor = toNaturalAnchor(exactMatch);
-      const repairedAnchor = isNaturalCompleteAnchor(anchor)
-        ? anchor
-        : expandFragmentAnchorFromSentence(sourceText, anchor, targetTopicTokens);
-      const fallbackAnchor = generateTopicAnchorFallback(sourceText, target, brandCandidates);
-      const finalAnchor = repairedAnchor ?? fallbackAnchor ?? anchor;
-      const validation = validateAnchorDetailed(finalAnchor);
-
-      if (finalAnchor.length < 4) {
-        logAnchorRejection(finalAnchor, ["too-short"]);
-        rejectedCandidates.push({ anchor: finalAnchor, reasons: ["too-short"] });
-        continue;
-      }
-
-      if (isVagueAnchor(finalAnchor)) {
-        logAnchorRejection(finalAnchor, ["generic-anchor"]);
-        rejectedCandidates.push({ anchor: finalAnchor, reasons: ["generic-anchor"] });
-        continue;
-      }
-
-      if (!validation.valid) {
-        logAnchorRejection(finalAnchor, validation.reasons);
-        rejectedCandidates.push({ anchor: finalAnchor, reasons: validation.reasons });
-        continue;
-      }
-
-      if (blockedAnchors.has(normalizeAnchorForCompare(finalAnchor))) {
-        continue;
-      }
-
-      if (
-        isBrandLikeAnchor(finalAnchor, brandCandidates) &&
-        !isHomepageOrAboutTarget(target.url)
-      ) {
-        continue;
-      }
-
-      candidates.push({
-        anchor: finalAnchor,
-        matchType: "exact",
-        phraseSource: phrase.source,
-        phraseWeight: phrase.weight,
-      });
-    }
-  }
-
-  for (const phrase of uniquePhrasePool) {
-    if (isWeakTopicPhrase(phrase.phrase)) {
-      continue;
-    }
-
-    if (phraseWordOverlap(sourceText, phrase.phrase) < 0.67 || phrase.phrase.length < 4) {
-      continue;
-    }
-
-    const closeMatches = findClosePhraseMatches(sourceText, phrase.phrase, 1);
-    const closeMatch = closeMatches[0];
-
-    if (closeMatch) {
-      const anchor = toNaturalAnchor(closeMatch);
-      const repairedAnchor = isNaturalCompleteAnchor(anchor)
-        ? anchor
-        : expandFragmentAnchorFromSentence(sourceText, anchor, targetTopicTokens);
-      const fallbackAnchor = generateTopicAnchorFallback(sourceText, target, brandCandidates);
-      const finalAnchor = repairedAnchor ?? fallbackAnchor ?? anchor;
-      const validation = validateAnchorDetailed(finalAnchor);
-
-      if (finalAnchor.length < 4) {
-        logAnchorRejection(finalAnchor, ["too-short"]);
-        rejectedCandidates.push({ anchor: finalAnchor, reasons: ["too-short"] });
-        continue;
-      }
-
-      if (isVagueAnchor(finalAnchor)) {
-        logAnchorRejection(finalAnchor, ["generic-anchor"]);
-        rejectedCandidates.push({ anchor: finalAnchor, reasons: ["generic-anchor"] });
-        continue;
-      }
-
-      if (!validation.valid) {
-        logAnchorRejection(finalAnchor, validation.reasons);
-        rejectedCandidates.push({ anchor: finalAnchor, reasons: validation.reasons });
-        continue;
-      }
-
-      if (blockedAnchors.has(normalizeAnchorForCompare(finalAnchor))) {
-        continue;
-      }
-
-      if (
-        isBrandLikeAnchor(finalAnchor, brandCandidates) &&
-        !isHomepageOrAboutTarget(target.url)
-      ) {
-        continue;
-      }
-
-      candidates.push({
-        anchor: finalAnchor,
-        matchType: "close",
-        phraseSource: phrase.source,
-        phraseWeight: phrase.weight,
-      });
-    }
-  }
-
-  for (const nounPhrase of extractNounPhraseCandidates(sourceText, targetTopicTokens)) {
-    if (!isNaturalCompleteAnchor(nounPhrase)) {
-      continue;
-    }
-
-    if (blockedAnchors.has(normalizeAnchorForCompare(nounPhrase))) {
-      continue;
-    }
-
-    if (isBrandLikeAnchor(nounPhrase, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
-      continue;
-    }
-
-    candidates.push({
-      anchor: nounPhrase,
-      matchType: "close",
-      phraseSource: "body_term",
-      phraseWeight: 0.78,
-    });
-  }
-
-  for (const sentencePhrase of extractContextPhraseCandidates(
-    sourceText,
-    targetTopicTokens,
-    sourcePageType,
-  )) {
-    const validation = validateAnchorDetailed(sentencePhrase);
     if (!validation.valid) {
-      rejectedCandidates.push({ anchor: sentencePhrase, reasons: validation.reasons });
+      const repaired = expandBrokenPhraseWithinSentence(sourceText, candidate);
+      if (repaired) {
+        candidate = repaired;
+        validation = validateAnchorDetailed(candidate);
+      }
+    }
+
+    if (!validation.valid) {
+      rejected.push({ anchor: raw, reasons: validation.reasons });
+      logAnchorRejected(raw, validation.reasons);
       continue;
     }
-    if (blockedAnchors.has(normalizeAnchorForCompare(sentencePhrase))) {
+
+    if (blockedAnchors.has(normalizeAnchor(candidate))) {
       continue;
     }
-    if (
-      isBrandLikeAnchor(sentencePhrase, brandCandidates) &&
-      !isHomepageOrAboutTarget(target.url)
-    ) {
+
+    if (isBrandLike(candidate, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
+      rejected.push({ anchor: raw, reasons: ["brand-only-non-home-about"] });
+      logAnchorRejected(raw, ["brand-only-non-home-about"]);
       continue;
     }
-    candidates.push({
-      anchor: sentencePhrase,
-      matchType: "close",
+
+    scored.push({
+      anchor: candidate,
+      score: scoreAgainstTarget(candidate, target, sourcePageType),
       phraseSource: "body_term",
-      phraseWeight: 0.82,
+      matchType: "close",
+      phraseWeight: 0.84,
     });
   }
 
-  if (candidates.length > 0) {
-    const ranked = candidates
-      .map((candidate) =>
-        rankCandidate(
-          candidate,
-          target,
-          sourcePageType,
-          titleTopicTokens,
-          h1TopicTokens,
-          primaryTopicTokens,
-          brandCandidates,
-        ),
-      )
-      .sort((a, b) => b.score - a.score || b.phraseWeight - a.phraseWeight || b.anchor.length - a.anchor.length);
+  scored.sort((a, b) => b.score - a.score || b.anchor.length - a.anchor.length);
 
-    const bestValid = ranked.find(
-      (entry) =>
-        isValidAnchor(entry.anchor) &&
-        !isVagueAnchor(entry.anchor) &&
-        !blockedAnchors.has(normalizeAnchorForCompare(entry.anchor)),
-    );
+  let selected = scored[0] ?? null;
 
-    if (!bestValid) {
-      if (process.env.NODE_ENV !== "production") {
-        console.debug("[internal-linking][anchor-debug]", {
-          detectedPageType: sourcePageType,
-          contextSentence: sourceText,
-          targetPageTopic: target.primaryTopic,
-          candidatePhrases: ranked.map((entry) => entry.anchor),
-          rejectedPhrases: rejectedCandidates,
-          selectedAnchor: null,
-        });
-      }
-      for (const entry of ranked.slice(0, 3)) {
-        const validation = validateAnchorDetailed(entry.anchor);
-        if (!validation.valid) {
-          logAnchorRejection(entry.anchor, validation.reasons);
-        }
-      }
-      return null;
+  // Stage 4: smart fallback from target topic only if needed.
+  if (!selected) {
+    const fallback = generateTopicFallbackAnchor(target, brandCandidates);
+    if (fallback && isHumanQualityAnchor(fallback) && !blockedAnchors.has(normalizeAnchor(fallback))) {
+      selected = {
+        anchor: fallback,
+        score: 1,
+        phraseSource: "title",
+        matchType: "fallback",
+        phraseWeight: 0.62,
+      };
     }
-
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("[internal-linking][anchor-debug]", {
-        detectedPageType: sourcePageType,
-        contextSentence: sourceText,
-        targetPageTopic: target.primaryTopic,
-        candidatePhrases: ranked.map((entry) => entry.anchor),
-        rejectedPhrases: rejectedCandidates,
-        selectedAnchor: bestValid.anchor,
-      });
-    }
-
-    return {
-      anchor: bestValid.anchor,
-      matchType: bestValid.matchType,
-      phraseSource: bestValid.phraseSource,
-      phraseWeight: bestValid.phraseWeight,
-    };
   }
 
-  return null;
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[internal-linking][anchor-debug]", {
+      detectedPageType: sourcePageType,
+      contextSentence: sourceText,
+      candidatePhrases: scored.map((item) => item.anchor),
+      rejectedPhrases: rejected,
+      selectedAnchor: selected?.anchor ?? null,
+      targetPageTopic: target.primaryTopic,
+    });
+  }
+
+  // Stage 5: final validation gate.
+  if (!selected || !isHumanQualityAnchor(selected.anchor)) {
+    if (selected) {
+      const finalValidation = validateAnchorDetailed(selected.anchor);
+      logAnchorRejected(selected.anchor, finalValidation.reasons);
+    }
+    return null;
+  }
+
+  return {
+    anchor: selected.anchor,
+    matchType: selected.matchType,
+    phraseSource: selected.phraseSource,
+    phraseWeight: selected.phraseWeight,
+  };
 }
