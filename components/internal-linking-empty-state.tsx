@@ -28,11 +28,10 @@ export function InternalLinkingEmptyState({
         No live queue items
       </p>
       <h3 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-        No link opportunities found
+        No strong matches found
       </h3>
       <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-700 dark:text-slate-300">
-        This scan did not return usable internal-link suggestions. Try a fresh crawl and check that
-        the page has enough body copy and internal pages to match against.
+        Suggested links below are generated based on page topic.
       </p>
     </div>
   );

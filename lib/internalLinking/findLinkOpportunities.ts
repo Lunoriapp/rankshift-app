@@ -52,7 +52,7 @@ const GENERIC_ANCHOR_PHRASES = new Set([
   "no strong anchor found",
 ]);
 
-const MIN_ACTIONABLE_OPPORTUNITIES = 3;
+const MIN_ACTIONABLE_OPPORTUNITIES = 2;
 
 function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string | null): string {
   const base = `${sourceUrl}|${targetUrl}|${anchor || "rewrite"}`
@@ -397,6 +397,49 @@ function buildExpectedOutcome(
   }
 
   return `Supports ranking for ${quotedTopic} by reinforcing topical signals and helping search engines understand page focus.`;
+}
+
+function fallbackAnchorVariants(
+  source: SitePageTopicProfile,
+  target: SitePageTopicProfile,
+): string[] {
+  const sourceCore =
+    normalizeAnchorTextForCompare(
+      source.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ??
+        source.primaryTopic,
+    ) ?? "";
+  const targetCore =
+    normalizeAnchorTextForCompare(
+      target.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ??
+        target.primaryTopic,
+    ) ?? "";
+
+  const sourceTokens = sourceCore.split(" ").filter(Boolean);
+  const targetTokens = targetCore.split(" ").filter(Boolean);
+  const variants = new Set<string>();
+
+  const pushIfValid = (value: string) => {
+    const normalized = normalizeAnchorTextForCompare(value);
+    const words = normalized.split(" ").filter(Boolean);
+
+    if (words.length < 2 || words.length > 5) {
+      return;
+    }
+
+    if (GENERIC_ANCHOR_PHRASES.has(normalized)) {
+      return;
+    }
+
+    variants.add(words.join(" "));
+  };
+
+  pushIfValid(targetTokens.slice(0, 4).join(" "));
+  pushIfValid(`${targetTokens.slice(0, 3).join(" ")} services`);
+  pushIfValid(`${targetTokens.slice(0, 2).join(" ")} support`);
+  pushIfValid(`${sourceTokens.slice(0, 2).join(" ")} ${targetTokens.slice(0, 2).join(" ")}`.trim());
+  pushIfValid(`${targetTokens.slice(0, 2).join(" ")} solutions`);
+
+  return [...variants].slice(0, 3);
 }
 
 function anchorAffinity(anchor: string | null, targetUrl: string, targetTitle: string): number {
@@ -1348,6 +1391,93 @@ export function findLinkOpportunities(
     }
 
     rewrites.push(opportunity);
+  }
+
+  if (actionable.length < MIN_ACTIONABLE_OPPORTUNITIES && topicProfiles.length > 1) {
+    const localSourceProfileByUrl = new Map(
+      topicProfiles.map((profile) => [normalizeComparableUrl(profile.url), profile]),
+    );
+    const localTargetProfileByUrl = new Map(
+      topicProfiles.map((profile) => [normalizeComparableUrl(profile.url), profile]),
+    );
+    const actionableKeys = new Set(
+      actionable.map(
+        (opportunity) =>
+          `${normalizeComparableUrl(opportunity.sourceUrl)}|${normalizeComparableUrl(opportunity.targetUrl)}|${normalizePhrase(
+            opportunity.suggestedAnchor ?? "",
+          )}`,
+      ),
+    );
+    const fallbackAnchorOpportunities: InternalLinkOpportunity[] = [];
+
+    for (const source of topicProfiles) {
+      for (const target of topicProfiles) {
+        if (source.url === target.url || sourceAlreadyLinksToTarget(source, target.url)) {
+          continue;
+        }
+
+        if (!hasStrongSourceTargetTopicFit(source, target)) {
+          continue;
+        }
+
+        const anchors = fallbackAnchorVariants(source, target);
+        for (const anchor of anchors) {
+          if (sourceHasLinkedAnchorPhrase(source, anchor)) {
+            continue;
+          }
+
+          if (isBrandAnchor(anchor, brandCandidates) && !(isHomepageTarget(target.url) || isAboutTarget(target.url))) {
+            continue;
+          }
+
+          const key = `${normalizeComparableUrl(source.url)}|${normalizeComparableUrl(target.url)}|${normalizePhrase(
+            anchor,
+          )}`;
+          if (actionableKeys.has(key)) {
+            continue;
+          }
+
+          fallbackAnchorOpportunities.push({
+            id: buildOpportunityId(source.url, target.url, anchor),
+            sourceUrl: source.url,
+            sourceTitle: source.title,
+            targetUrl: target.url,
+            targetTitle: target.title,
+            suggestedAnchor: anchor,
+            rewriteSuggestion: null,
+            matchedSnippet:
+              source.contentDebug.firstExtractedTextChunks[0] ??
+              `Add a natural sentence mentioning "${anchor}" in body copy.`,
+            placementHint: `Body content: add a natural sentence using "${anchor}".`,
+            reason: `Generated from source and target topic overlap to provide a clear, natural anchor phrase.`,
+            expectedOutcome: buildExpectedOutcome(anchor, source, target),
+            confidence: "Low",
+            confidenceScore: 52,
+            status: "open",
+            category: "Internal linking",
+            opportunityType: "contextual",
+          });
+          actionableKeys.add(key);
+        }
+      }
+    }
+
+    fallbackAnchorOpportunities.sort((a, b) => {
+      const sourceA = localSourceProfileByUrl.get(normalizeComparableUrl(a.sourceUrl));
+      const targetA = localTargetProfileByUrl.get(normalizeComparableUrl(a.targetUrl));
+      const sourceB = localSourceProfileByUrl.get(normalizeComparableUrl(b.sourceUrl));
+      const targetB = localTargetProfileByUrl.get(normalizeComparableUrl(b.targetUrl));
+      const scoreA = qualityScore(a, sourceA, targetA, brandCandidates);
+      const scoreB = qualityScore(b, sourceB, targetB, brandCandidates);
+      return scoreB - scoreA;
+    });
+
+    actionable.push(
+      ...fallbackAnchorOpportunities.slice(
+        0,
+        Math.max(0, MIN_ACTIONABLE_OPPORTUNITIES - actionable.length),
+      ),
+    );
   }
 
   const dedupedRewriteMap = new Map<string, InternalLinkOpportunity>();
