@@ -106,6 +106,14 @@ const FRAGMENT_EDGE_WORDS = new Set([
   "by",
   "from",
   "into",
+  "his",
+  "her",
+  "their",
+  "this",
+  "that",
+  "the",
+  "a",
+  "an",
 ]);
 
 function trimWeakEdgeWords(value: string): string {
@@ -252,7 +260,97 @@ function isNaturalCompleteAnchor(anchor: string): boolean {
     return false;
   }
 
+  // Reject fragment-like constructs with connector-heavy middles.
+  if (words.length >= 3) {
+    const middle = words.slice(1, -1);
+    const middleConnectorCount = middle.filter((word) => FRAGMENT_EDGE_WORDS.has(word)).length;
+    if (middleConnectorCount > 0) {
+      const topicHeads = [
+        "sculpture",
+        "sculptures",
+        "commission",
+        "commissions",
+        "services",
+        "service",
+        "agency",
+        "mediation",
+        "recruitment",
+        "seo",
+        "law",
+      ];
+      const hasTopicHead = words.some((word) => topicHeads.some((head) => word.includes(head)));
+      if (!hasTopicHead) {
+        return false;
+      }
+    }
+  }
+
   return /[a-z]/.test(normalized) && !isVagueAnchor(normalized);
+}
+
+function normalizeForMatch(value: string): string {
+  return normalizeWhitespace(value.toLowerCase().replace(/[^a-z0-9\s'-]+/g, " "));
+}
+
+function expandFragmentAnchorFromSentence(
+  sourceText: string,
+  anchor: string,
+  targetTopicTokens: Set<string>,
+): string | null {
+  const rawWords = normalizeWhitespace(sourceText).split(/\s+/).filter(Boolean);
+  const normWords = rawWords.map((word) => normalizeForMatch(word));
+  const anchorWords = normalizeForMatch(anchor).split(/\s+/).filter(Boolean);
+
+  if (rawWords.length < 2 || anchorWords.length === 0) {
+    return null;
+  }
+
+  let matchStart = -1;
+  for (let i = 0; i <= normWords.length - anchorWords.length; i += 1) {
+    if (normWords.slice(i, i + anchorWords.length).join(" ") === anchorWords.join(" ")) {
+      matchStart = i;
+      break;
+    }
+  }
+
+  if (matchStart === -1) {
+    return null;
+  }
+
+  const matchEnd = matchStart + anchorWords.length - 1;
+  const candidates = new Set<string>();
+
+  for (let size = 2; size <= 5; size += 1) {
+    for (let start = Math.max(0, matchEnd - size + 1); start <= matchStart; start += 1) {
+      const end = start + size - 1;
+      if (end >= rawWords.length || start > matchStart || end < matchEnd) {
+        continue;
+      }
+
+      const candidate = toNaturalAnchor(rawWords.slice(start, end + 1).join(" "));
+      if (!isNaturalCompleteAnchor(candidate)) {
+        continue;
+      }
+
+      candidates.add(candidate);
+    }
+  }
+
+  if (candidates.size === 0) {
+    return null;
+  }
+
+  const ranked = [...candidates]
+    .map((candidate) => ({
+      candidate,
+      score:
+        overlapRatio(candidate, targetTopicTokens) * 0.58 +
+        serviceTopicTermBoost(candidate) * 0.26 +
+        naturalLengthScore(candidate) * 0.16,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return ranked[0]?.candidate ?? null;
 }
 
 function intentBoostForPageType(
@@ -425,29 +523,36 @@ export function suggestAnchorText(
 
     if (exactMatch && exactMatch.length >= 4) {
       const anchor = toNaturalAnchor(exactMatch);
+      const repairedAnchor = isNaturalCompleteAnchor(anchor)
+        ? anchor
+        : expandFragmentAnchorFromSentence(sourceText, anchor, targetTopicTokens);
+      const finalAnchor = repairedAnchor ?? anchor;
 
-      if (anchor.length < 4) {
+      if (finalAnchor.length < 4) {
         continue;
       }
 
-      if (isVagueAnchor(anchor)) {
+      if (isVagueAnchor(finalAnchor)) {
         continue;
       }
 
-      if (!isNaturalCompleteAnchor(anchor)) {
+      if (!isNaturalCompleteAnchor(finalAnchor)) {
         continue;
       }
 
-      if (blockedAnchors.has(normalizeAnchorForCompare(anchor))) {
+      if (blockedAnchors.has(normalizeAnchorForCompare(finalAnchor))) {
         continue;
       }
 
-      if (isBrandLikeAnchor(anchor, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
+      if (
+        isBrandLikeAnchor(finalAnchor, brandCandidates) &&
+        !isHomepageOrAboutTarget(target.url)
+      ) {
         continue;
       }
 
       candidates.push({
-        anchor,
+        anchor: finalAnchor,
         matchType: "exact",
         phraseSource: phrase.source,
         phraseWeight: phrase.weight,
@@ -469,29 +574,36 @@ export function suggestAnchorText(
 
     if (closeMatch) {
       const anchor = toNaturalAnchor(closeMatch);
+      const repairedAnchor = isNaturalCompleteAnchor(anchor)
+        ? anchor
+        : expandFragmentAnchorFromSentence(sourceText, anchor, targetTopicTokens);
+      const finalAnchor = repairedAnchor ?? anchor;
 
-      if (anchor.length < 4) {
+      if (finalAnchor.length < 4) {
         continue;
       }
 
-      if (isVagueAnchor(anchor)) {
+      if (isVagueAnchor(finalAnchor)) {
         continue;
       }
 
-      if (!isNaturalCompleteAnchor(anchor)) {
+      if (!isNaturalCompleteAnchor(finalAnchor)) {
         continue;
       }
 
-      if (blockedAnchors.has(normalizeAnchorForCompare(anchor))) {
+      if (blockedAnchors.has(normalizeAnchorForCompare(finalAnchor))) {
         continue;
       }
 
-      if (isBrandLikeAnchor(anchor, brandCandidates) && !isHomepageOrAboutTarget(target.url)) {
+      if (
+        isBrandLikeAnchor(finalAnchor, brandCandidates) &&
+        !isHomepageOrAboutTarget(target.url)
+      ) {
         continue;
       }
 
       candidates.push({
-        anchor,
+        anchor: finalAnchor,
         matchType: "close",
         phraseSource: phrase.source,
         phraseWeight: phrase.weight,
@@ -535,11 +647,22 @@ export function suggestAnchorText(
       )
       .sort((a, b) => b.score - a.score || b.phraseWeight - a.phraseWeight || b.anchor.length - a.anchor.length);
 
+    const bestValid = ranked.find(
+      (entry) =>
+        isNaturalCompleteAnchor(entry.anchor) &&
+        !isVagueAnchor(entry.anchor) &&
+        !blockedAnchors.has(normalizeAnchorForCompare(entry.anchor)),
+    );
+
+    if (!bestValid) {
+      return null;
+    }
+
     return {
-      anchor: ranked[0].anchor,
-      matchType: ranked[0].matchType,
-      phraseSource: ranked[0].phraseSource,
-      phraseWeight: ranked[0].phraseWeight,
+      anchor: bestValid.anchor,
+      matchType: bestValid.matchType,
+      phraseSource: bestValid.phraseSource,
+      phraseWeight: bestValid.phraseWeight,
     };
   }
 
