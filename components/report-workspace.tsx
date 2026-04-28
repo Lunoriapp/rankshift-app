@@ -441,6 +441,21 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
     };
   }, [payload]);
 
+  const pricingContextQuery = useMemo(() => {
+    if (!payload || !reportSummary) {
+      return "";
+    }
+
+    const params = new URLSearchParams({
+      auditId: reportId,
+      analysedUrl: payload.audit.url,
+      score: String(reportSummary.score),
+      issuesCount: String(reportSummary.issueCount),
+    });
+
+    return params.toString();
+  }, [payload, reportId, reportSummary]);
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-[#f6f7fb] px-4 py-8 sm:px-6 lg:px-8">
@@ -712,7 +727,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                   </ul>
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                     <Link
-                      href="/pricing?plan=monthly"
+                      href={`/pricing?plan=monthly${pricingContextQuery ? `&${pricingContextQuery}` : ""}`}
                       className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105"
                     >
                       Start tracking
@@ -722,7 +737,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                         Best value
                       </span>
                       <Link
-                        href="/pricing?plan=yearly"
+                        href={`/pricing?plan=yearly${pricingContextQuery ? `&${pricingContextQuery}` : ""}`}
                         className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
                       >
                         Save with yearly
