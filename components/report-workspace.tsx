@@ -408,6 +408,10 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
       opportunity && Number.isFinite(opportunity.projectedScore) && Number.isFinite(opportunity.score)
         ? Math.max(0, Math.round(opportunity.projectedScore - opportunity.score))
         : null;
+    const meaningfulPotentialLift = potentialLift !== null && potentialLift > 0 ? potentialLift : null;
+    const topActionsNow = [...payload.audit.fixes]
+      .sort((a, b) => severityRank[a.severity] - severityRank[b.severity])
+      .slice(0, 3);
 
     return {
       score,
@@ -432,7 +436,8 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
       criticalHighIssueCount,
       topIssuesPreview,
       topInternalLinksPreview,
-      potentialLift,
+      potentialLift: meaningfulPotentialLift,
+      topActionsNow,
     };
   }, [payload]);
 
@@ -622,7 +627,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.35)] sm:p-6">
             <div className="grid gap-5 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
-              <article className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              <article className="space-y-4 rounded-2xl border border-slate-300 bg-slate-50 p-4 sm:p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div className="max-w-2xl">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600">Audit Results</p>
@@ -675,6 +680,24 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                     </p>
                   </article>
                 </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Top actions to take now
+                  </p>
+                  <div className="mt-2 space-y-1.5 text-sm text-slate-700">
+                    {reportSummary.topActionsNow.length > 0 ? (
+                      reportSummary.topActionsNow.map((fix) => (
+                        <p key={fix.id} className="flex items-start gap-2">
+                          <span className="mt-[6px] inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
+                          <span className="line-clamp-1">{fix.title}</span>
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-slate-500">No urgent actions detected.</p>
+                    )}
+                  </div>
+                </div>
               </article>
 
               <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.25)] sm:p-4">
@@ -691,7 +714,7 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
 
                 <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
                   <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-                    <p className="text-xs font-medium text-indigo-700">Generated from your live scan data</p>
+                    <p className="text-xs font-medium text-indigo-700">Live audit results</p>
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
                       <div className="h-full w-[82%] rounded-full bg-indigo-500" />
                     </div>
@@ -723,7 +746,9 @@ export function ReportWorkspace({ reportId }: ReportWorkspaceProps) {
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200 px-3 py-3">
-                      <p className="text-xs font-medium text-slate-500">Link opportunities</p>
+                      <p className="text-xs font-medium text-slate-500">
+                        {reportSummary.totalLinkOps} high-impact internal link{reportSummary.totalLinkOps === 1 ? "" : "s"} found
+                      </p>
                       <p className="mt-1 text-3xl font-semibold tracking-tight text-indigo-600">
                         {reportSummary.totalLinkOps}
                       </p>
