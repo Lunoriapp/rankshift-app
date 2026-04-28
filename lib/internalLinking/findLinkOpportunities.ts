@@ -363,8 +363,10 @@ function buildRewriteSuggestion(source: SitePageTopicProfile, target: SitePageTo
 
   const anchorHint =
     topicalAnchor && topicalAnchor.length >= 4 ? `"${topicalAnchor}"` : `"${target.title}"`;
+  const sourceTopic =
+    source.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ?? source.primaryTopic;
 
-  return `Rewrite a sentence on "${source.title}" to naturally include ${anchorHint} and link to ${target.url}.`;
+  return `Rewrite one sentence in the "${sourceTopic}" section to naturally include ${anchorHint} and link to ${target.url}.`;
 }
 
 function buildReason(
@@ -378,6 +380,37 @@ function buildReason(
   }
 
   return `\"${anchor}\" strongly aligns with ${sourceTitle} and points naturally to ${targetTitle}; topic fit ${Math.round(scored.signals.targetTopicAlignment * 100)}%, source-theme fit ${Math.round(scored.signals.sourceTopicAlignment * 100)}%.`;
+}
+
+function buildExpectedOutcome(
+  anchor: string | null,
+  source: SitePageTopicProfile,
+  target: SitePageTopicProfile,
+): string {
+  const targetPath = new URL(target.url).pathname.toLowerCase();
+  const targetTopic =
+    target.topicPhrases.find((phrase) => phrase.source === "title")?.phrase ??
+    target.primaryTopic;
+  const quotedTopic = `"${targetTopic}"`;
+
+  if (!anchor) {
+    return `Adds a clearer internal path between related topics and improves crawl depth toward ${target.title}.`;
+  }
+
+  if (
+    source.pageType === "ecommerce" ||
+    targetPath.includes("product") ||
+    targetPath.includes("shop") ||
+    targetPath.includes("category")
+  ) {
+    return `Strengthens internal linking to this product/category page and improves crawl depth for ${quotedTopic}.`;
+  }
+
+  if (source.pageType === "blog") {
+    return `Improves relevance for ${quotedTopic} and helps search engines connect informational intent across pages.`;
+  }
+
+  return `Supports ranking for ${quotedTopic} by reinforcing topical signals and helping search engines understand page focus.`;
 }
 
 function anchorAffinity(anchor: string | null, targetUrl: string, targetTitle: string): number {
@@ -673,7 +706,7 @@ function buildRelatedCandidates(
         return null;
       }
 
-      const candidate: InternalLinkOpportunity = {
+        const candidate: InternalLinkOpportunity = {
         id: buildOpportunityId(source.url, target.url, null),
         sourceUrl: source.url,
         sourceTitle: source.title,
@@ -685,6 +718,7 @@ function buildRelatedCandidates(
         placementHint: "Content improvement opportunity. Suggested rewrite available.",
         reason:
           "A rewrite is suggested to add a natural contextual link between closely related topics.",
+        expectedOutcome: buildExpectedOutcome(null, source, target),
         confidence: rewriteStrength.confidence,
         confidenceScore: rewriteStrength.confidenceScore,
         status: "open",
@@ -888,6 +922,7 @@ export function findLinkOpportunities(
           preferredPhrases: preferredSourcePhrases,
           blockedAnchors: blockedSourceAnchors,
           brandCandidates,
+          sourcePageType: source.pageType,
         });
 
         if (!suggestion) {
@@ -1126,6 +1161,7 @@ export function findLinkOpportunities(
           matchedSnippet: snippet,
           placementHint: buildPlacementHint(winningCandidate.sectionLabel, winningCandidate.anchor),
           reason: buildReason(source.title, target.title, winningCandidate.anchor, winningCandidate.scored),
+          expectedOutcome: buildExpectedOutcome(winningCandidate.anchor, source, target),
           confidence: confidence.confidence,
           confidenceScore: confidence.confidenceScore,
           status: "open",
@@ -1198,6 +1234,7 @@ export function findLinkOpportunities(
                 anchorNaturalness: 0,
               },
             }),
+            expectedOutcome: buildExpectedOutcome(null, source, target),
             confidence: "Low",
             confidenceScore: Math.min(56, rewriteStrength.confidenceScore),
             status: "open",
@@ -1436,6 +1473,7 @@ export function findLinkOpportunities(
               anchorNaturalness: 0,
             },
           }),
+          expectedOutcome: buildExpectedOutcome(null, source, target),
           confidence: "Low",
           confidenceScore: Math.min(56, rewriteStrength.confidenceScore),
           status: "open",

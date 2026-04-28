@@ -19,6 +19,7 @@ interface SuggestAnchorTextOptions {
   preferredPhrases?: TopicPhraseCandidate[];
   blockedAnchors?: Set<string> | string[];
   brandCandidates?: Set<string> | string[];
+  sourcePageType?: SitePageTopicProfile["pageType"];
 }
 
 interface RankedAnchorCandidate extends AnchorSuggestion {
@@ -86,6 +87,25 @@ const VAGUE_ANCHORS = new Set([
   "more information",
   "this page",
   "this article",
+]);
+
+const FRAGMENT_EDGE_WORDS = new Set([
+  "and",
+  "or",
+  "but",
+  "so",
+  "because",
+  "with",
+  "without",
+  "for",
+  "to",
+  "of",
+  "in",
+  "on",
+  "at",
+  "by",
+  "from",
+  "into",
 ]);
 
 function trimWeakEdgeWords(value: string): string {
@@ -213,9 +233,68 @@ function isVagueAnchor(anchor: string): boolean {
   );
 }
 
+function isNaturalCompleteAnchor(anchor: string): boolean {
+  const normalized = normalizeWhitespace(anchor).toLowerCase();
+  const words = normalized.split(/\s+/).filter(Boolean);
+
+  if (words.length < 2 || words.length > 5) {
+    return false;
+  }
+
+  if (
+    FRAGMENT_EDGE_WORDS.has(words[0]) ||
+    FRAGMENT_EDGE_WORDS.has(words[words.length - 1])
+  ) {
+    return false;
+  }
+
+  if (normalized.length < 8) {
+    return false;
+  }
+
+  return /[a-z]/.test(normalized) && !isVagueAnchor(normalized);
+}
+
+function intentBoostForPageType(
+  anchor: string,
+  pageType: SitePageTopicProfile["pageType"],
+): number {
+  const normalized = normalizeWhitespace(anchor).toLowerCase();
+
+  const serviceIntentTerms = [
+    "service",
+    "services",
+    "agency",
+    "consultant",
+    "consulting",
+    "law",
+    "mediation",
+    "support",
+  ];
+  const informationalTerms = ["how", "guide", "tips", "checklist", "best", "what is", "why"];
+  const ecommerceTerms = ["buy", "shop", "product", "category", "collection", "price"];
+
+  const matches = (terms: string[]) => terms.filter((term) => normalized.includes(term)).length;
+
+  if (pageType === "service") {
+    return Math.min(1, 0.45 + matches(serviceIntentTerms) * 0.25);
+  }
+
+  if (pageType === "blog") {
+    return Math.min(1, 0.4 + matches(informationalTerms) * 0.28);
+  }
+
+  if (pageType === "ecommerce") {
+    return Math.min(1, 0.42 + matches(ecommerceTerms) * 0.28);
+  }
+
+  return 0.55;
+}
+
 function rankCandidate(
   candidate: AnchorSuggestion,
   target: SitePageTopicProfile,
+  sourcePageType: SitePageTopicProfile["pageType"],
   titleTopicTokens: Set<string>,
   h1TopicTokens: Set<string>,
   primaryTopicTokens: Set<string>,
@@ -228,6 +307,8 @@ function rankCandidate(
   const primaryTopicAffinity = overlapRatio(candidate.anchor, primaryTopicTokens);
   const lengthScore = naturalLengthScore(candidate.anchor);
   const serviceBoost = serviceTopicTermBoost(candidate.anchor);
+  const completePhraseScore = isNaturalCompleteAnchor(candidate.anchor) ? 1 : 0;
+  const intentBoost = intentBoostForPageType(candidate.anchor, sourcePageType);
   const brandPenalty = isBrandLikeAnchor(candidate.anchor, brandCandidates)
     ? isHomepageOrAboutTarget(target.url)
       ? 0.55
@@ -243,6 +324,8 @@ function rankCandidate(
       h1Affinity * 0.12 +
       primaryTopicAffinity * 0.09 +
       serviceBoost * 0.11 +
+      completePhraseScore * 0.12 +
+      intentBoost * 0.1 +
       lengthScore * 0.08 -
       brandPenalty * 0.34,
   };
@@ -304,6 +387,7 @@ export function suggestAnchorText(
     options.brandCandidates instanceof Set
       ? options.brandCandidates
       : new Set((options.brandCandidates ?? []).map((value) => normalizeAnchorForCompare(value)));
+  const sourcePageType = options.sourcePageType ?? "general";
   const candidates: AnchorSuggestion[] = [];
   const targetSignalText = `${target.title} ${target.h1} ${target.primaryTopic}`;
   const preferredPhrases = (options.preferredPhrases ?? [])
@@ -350,6 +434,10 @@ export function suggestAnchorText(
         continue;
       }
 
+      if (!isNaturalCompleteAnchor(anchor)) {
+        continue;
+      }
+
       if (blockedAnchors.has(normalizeAnchorForCompare(anchor))) {
         continue;
       }
@@ -390,6 +478,10 @@ export function suggestAnchorText(
         continue;
       }
 
+      if (!isNaturalCompleteAnchor(anchor)) {
+        continue;
+      }
+
       if (blockedAnchors.has(normalizeAnchorForCompare(anchor))) {
         continue;
       }
@@ -408,6 +500,10 @@ export function suggestAnchorText(
   }
 
   for (const nounPhrase of extractNounPhraseCandidates(sourceText, targetTopicTokens)) {
+    if (!isNaturalCompleteAnchor(nounPhrase)) {
+      continue;
+    }
+
     if (blockedAnchors.has(normalizeAnchorForCompare(nounPhrase))) {
       continue;
     }
@@ -430,6 +526,7 @@ export function suggestAnchorText(
         rankCandidate(
           candidate,
           target,
+          sourcePageType,
           titleTopicTokens,
           h1TopicTokens,
           primaryTopicTokens,

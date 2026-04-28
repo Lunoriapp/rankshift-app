@@ -32,6 +32,10 @@ function whyThisWorks(opportunity: InternalLinkOpportunity): string {
 }
 
 function expectedOutcome(opportunity: InternalLinkOpportunity): string {
+  if (opportunity.expectedOutcome) {
+    return decodeHtmlEntities(opportunity.expectedOutcome);
+  }
+
   if (!opportunity.suggestedAnchor) {
     return "Adds clearer topical context and gives crawlers a stronger path between related pages.";
   }

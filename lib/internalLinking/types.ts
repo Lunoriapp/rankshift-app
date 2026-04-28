@@ -36,6 +36,7 @@ export interface SitePageTopicProfile {
   inboundInternalLinkCount: number;
   outboundInternalLinkCount: number;
   commerciallyImportant: boolean;
+  pageType: "service" | "blog" | "ecommerce" | "general";
   indexable: boolean;
 }
 
@@ -50,6 +51,7 @@ export interface InternalLinkOpportunity {
   matchedSnippet: string;
   placementHint: string;
   reason: string;
+  expectedOutcome?: string;
   confidence: InternalLinkConfidence;
   confidenceScore: number;
   status: InternalLinkOpportunityStatus;

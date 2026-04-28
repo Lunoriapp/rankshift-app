@@ -157,6 +157,49 @@ function buildBodyContexts(page: SitePageSnapshot): SiteContentContext[] {
   return deduped.slice(0, 220);
 }
 
+function inferPageType(page: SitePageSnapshot): SitePageTopicProfile["pageType"] {
+  const urlPath = new URL(page.url).pathname.toLowerCase();
+  const signals = `${page.title} ${page.h1} ${page.h2s.join(" ")} ${urlPath}`.toLowerCase();
+
+  const blogSignals = ["blog", "news", "guide", "article", "how to", "tips", "resources"];
+  if (blogSignals.some((signal) => signals.includes(signal))) {
+    return "blog";
+  }
+
+  const ecommerceSignals = [
+    "product",
+    "products",
+    "shop",
+    "category",
+    "collection",
+    "sku",
+    "cart",
+    "checkout",
+    "buy",
+  ];
+  if (ecommerceSignals.some((signal) => signals.includes(signal))) {
+    return "ecommerce";
+  }
+
+  const serviceSignals = [
+    "service",
+    "services",
+    "agency",
+    "consult",
+    "consulting",
+    "specialist",
+    "law",
+    "mediation",
+    "support",
+    "solutions",
+  ];
+  if (serviceSignals.some((signal) => signals.includes(signal))) {
+    return "service";
+  }
+
+  return "general";
+}
+
 export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfile[] {
   const inboundCounts = new Map<string, number>();
 
@@ -233,6 +276,7 @@ export function analyseSiteTopics(pages: SitePageSnapshot[]): SitePageTopicProfi
           : 0,
         outboundInternalLinkCount: page.existingInternalLinks.length,
         commerciallyImportant: isCommercialPage(page),
+        pageType: inferPageType(page),
         indexable: page.indexable,
       };
     });

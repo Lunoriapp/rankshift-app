@@ -59,19 +59,19 @@ function sectionRelevance(sectionLabel: string): number {
 }
 
 function topOfPageWeight(position: number): number {
-  if (position <= 2) {
+  if (position <= 1) {
     return 1;
   }
 
-  if (position <= 6) {
-    return 0.9;
+  if (position <= 4) {
+    return 0.95;
   }
 
-  if (position <= 12) {
-    return 0.8;
+  if (position <= 10) {
+    return 0.84;
   }
 
-  return 0.68;
+  return 0.66;
 }
 
 function coreTopicTerms(profile: SitePageTopicProfile): string[] {
