@@ -49,7 +49,10 @@ const GENERIC_ANCHOR_PHRASES = new Set([
   "find out more",
   "related page link",
   "this page",
+  "no strong anchor found",
 ]);
+
+const MIN_ACTIONABLE_OPPORTUNITIES = 3;
 
 function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string | null): string {
   const base = `${sourceUrl}|${targetUrl}|${anchor || "rewrite"}`
@@ -348,7 +351,20 @@ function buildPlacementHint(sectionLabel: string, anchor: string): string {
 }
 
 function buildRewriteSuggestion(source: SitePageTopicProfile, target: SitePageTopicProfile): string {
-  return `Rewrite a sentence on "${source.title}" to include a natural contextual mention of "${target.title}" and link it to ${target.url}.`;
+  const topicalAnchor =
+    target.topicPhrases
+      .map((phrase) => normalizeAnchorTextForCompare(phrase.phrase))
+      .find((phrase) => {
+        const words = phrase.split(" ").filter(Boolean).length;
+        return words >= 2 && words <= 5 && !GENERIC_ANCHOR_PHRASES.has(phrase);
+      }) ??
+    normalizeAnchorTextForCompare(target.primaryTopic) ??
+    normalizeAnchorTextForCompare(target.title.split(/[|:-]/)[0] ?? target.title);
+
+  const anchorHint =
+    topicalAnchor && topicalAnchor.length >= 4 ? `"${topicalAnchor}"` : `"${target.title}"`;
+
+  return `Rewrite a sentence on "${source.title}" to naturally include ${anchorHint} and link to ${target.url}.`;
 }
 
 function buildReason(
@@ -358,7 +374,7 @@ function buildReason(
   scored: OpportunityScore,
 ): string {
   if (!anchor) {
-    return `No strong unlinked anchor phrase was found in the current copy, but ${sourceTitle} and ${targetTitle} are strongly related.`;
+    return `A natural linked phrase is not yet present in body copy, but ${sourceTitle} and ${targetTitle} are strongly related.`;
   }
 
   return `\"${anchor}\" strongly aligns with ${sourceTitle} and points naturally to ${targetTitle}; topic fit ${Math.round(scored.signals.targetTopicAlignment * 100)}%, source-theme fit ${Math.round(scored.signals.sourceTopicAlignment * 100)}%.`;
@@ -413,8 +429,14 @@ function hasUsableAnchor(value: string | null | undefined): value is string {
   }
 
   const normalized = normalizeAnchorTextForCompare(value);
+  const words = normalized.split(" ").filter(Boolean).length;
 
-  return normalized.length > 0 && normalized !== "related page link";
+  return (
+    normalized.length >= 4 &&
+    words >= 2 &&
+    !GENERIC_ANCHOR_PHRASES.has(normalized) &&
+    normalized !== "related page link"
+  );
 }
 
 function anchorKeywordAlignment(anchor: string, opportunity: InternalLinkOpportunity): number {
@@ -659,11 +681,10 @@ function buildRelatedCandidates(
         targetTitle: target.title,
         suggestedAnchor: null,
         rewriteSuggestion: buildRewriteSuggestion(source, target),
-        matchedSnippet: "No strong inline anchor was found in body text.",
-        placementHint:
-          "No strong anchor found. Suggested rewrite available.",
+        matchedSnippet: "Add a contextual sentence in body text to introduce this linked topic naturally.",
+        placementHint: "Content improvement opportunity. Suggested rewrite available.",
         reason:
-          "No strong unlinked anchor phrase was found in current copy. A rewrite is suggested to add a natural contextual link.",
+          "A rewrite is suggested to add a natural contextual link between closely related topics.",
         confidence: rewriteStrength.confidence,
         confidenceScore: rewriteStrength.confidenceScore,
         status: "open",
@@ -1163,8 +1184,8 @@ export function findLinkOpportunities(
             rewriteSuggestion,
             matchedSnippet:
               source.contentDebug.firstExtractedTextChunks[0] ??
-              "No strong unlinked anchor phrase was found in source copy.",
-            placementHint: "No strong anchor found. Suggested rewrite available.",
+              "Add a contextual sentence in body copy that introduces the target topic naturally.",
+            placementHint: "Content improvement opportunity. Suggested rewrite available.",
             reason: buildReason(source.title, target.title, null, {
               score: rewriteStrength.confidenceScore,
               confidence: rewriteStrength.confidence,
@@ -1338,7 +1359,7 @@ export function findLinkOpportunities(
     .sort((a, b) => b.confidenceScore - a.confidenceScore)
     .slice(0, maxRewriteCount);
 
-  const finalOpportunities = [...actionable, ...dedupedRewrites]
+  let finalOpportunities = [...actionable, ...dedupedRewrites]
     .sort((a, b) => {
       if (confidenceRank[a.confidence] !== confidenceRank[b.confidence]) {
         return confidenceRank[b.confidence] - confidenceRank[a.confidence];
@@ -1353,6 +1374,92 @@ export function findLinkOpportunities(
       return b.confidenceScore - a.confidenceScore;
     })
     .slice(0, maxOpportunities);
+
+  if (finalOpportunities.length < MIN_ACTIONABLE_OPPORTUNITIES && topicProfiles.length > 1) {
+    const existingKeys = new Set(
+      finalOpportunities.map(
+        (opportunity) =>
+          `${normalizeComparableUrl(opportunity.sourceUrl)}|${normalizeComparableUrl(opportunity.targetUrl)}|${
+            hasUsableAnchor(opportunity.suggestedAnchor)
+              ? normalizePhrase(opportunity.suggestedAnchor)
+              : normalizePhrase(opportunity.rewriteSuggestion ?? "rewrite")
+          }`,
+      ),
+    );
+    const fallbackPool: InternalLinkOpportunity[] = [];
+
+    for (const source of topicProfiles) {
+      for (const target of topicProfiles) {
+        if (
+          source.url === target.url ||
+          sourceAlreadyLinksToTarget(source, target.url) ||
+          !hasStrongSourceTargetTopicFit(source, target)
+        ) {
+          continue;
+        }
+
+        const rewriteStrength = rewriteStrengthForPair(source, target);
+        if (!rewriteStrength) {
+          continue;
+        }
+
+        const rewriteSuggestion = buildRewriteSuggestion(source, target);
+        const key = `${normalizeComparableUrl(source.url)}|${normalizeComparableUrl(target.url)}|${normalizePhrase(
+          rewriteSuggestion,
+        )}`;
+
+        if (existingKeys.has(key)) {
+          continue;
+        }
+
+        fallbackPool.push({
+          id: buildOpportunityId(source.url, target.url, null),
+          sourceUrl: source.url,
+          sourceTitle: source.title,
+          targetUrl: target.url,
+          targetTitle: target.title,
+          suggestedAnchor: null,
+          rewriteSuggestion,
+          matchedSnippet:
+            source.contentDebug.firstExtractedTextChunks[0] ??
+            "Add a naturally worded sentence in body content that introduces the target topic.",
+          placementHint: "Content improvement opportunity. Suggested rewrite available.",
+          reason: buildReason(source.title, target.title, null, {
+            score: rewriteStrength.confidenceScore,
+            confidence: rewriteStrength.confidence,
+            signals: {
+              sourceTopicAlignment: 0.62,
+              targetTopicAlignment: 0.62,
+              sourceTargetAlignment: 0.64,
+              sectionRelevance: 0.7,
+              topOfPageWeight: 0.7,
+              anchorNaturalness: 0,
+            },
+          }),
+          confidence: "Low",
+          confidenceScore: Math.min(56, rewriteStrength.confidenceScore),
+          status: "open",
+          category: "Internal linking",
+          opportunityType: "related",
+        });
+        existingKeys.add(key);
+      }
+    }
+
+    fallbackPool.sort((a, b) => {
+      const sourceA = sourceProfileByUrl.get(normalizeComparableUrl(a.sourceUrl));
+      const targetA = targetProfileByUrl.get(normalizeComparableUrl(a.targetUrl));
+      const sourceB = sourceProfileByUrl.get(normalizeComparableUrl(b.sourceUrl));
+      const targetB = targetProfileByUrl.get(normalizeComparableUrl(b.targetUrl));
+      const scoreA = qualityScore(a, sourceA, targetA, brandCandidates);
+      const scoreB = qualityScore(b, sourceB, targetB, brandCandidates);
+      return scoreB - scoreA;
+    });
+
+    finalOpportunities = [...finalOpportunities, ...fallbackPool]
+      .slice(0, Math.max(maxOpportunities, MIN_ACTIONABLE_OPPORTUNITIES))
+      .slice(0, Math.max(finalOpportunities.length, MIN_ACTIONABLE_OPPORTUNITIES));
+  }
   diagnostics.duplicateCandidatesRemoved += Math.max(
     0,
     suggestions.length - bestBySourceTarget.size + (bestBySourceTarget.size - sorted.length),
