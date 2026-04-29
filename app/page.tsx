@@ -140,31 +140,31 @@ export default function HomePage() {
                 AI SEO + LLM VISIBILITY AUDIT
               </p>
               <h1 className="mt-4 max-w-[17ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:max-w-[18ch] sm:text-4xl lg:text-6xl">
-                Find out why your page is invisible in Google and AI answers
+                Why your page is not showing in ChatGPT, Google AI, or search
               </h1>
               <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
-                Scan your page and get clear fixes for rankings, AI visibility, and internal links. See what is holding you back and what to fix first.
+                Run a live scan and see exactly what is blocking your rankings, AI visibility, and internal links. Get clear fixes you can act on straight away.
               </p>
               <div className="mt-5">
                 <AuditForm
-                  buttonLabel="Scan My Page"
+                  buttonLabel="Run Free Scan"
                   className="max-w-[560px]"
-                  helperText="No need to include https://"
+                  helperText="Takes 10 seconds. No signup needed."
                   showHighlights={false}
                 />
               </div>
-              <p className="mt-2 text-sm text-slate-600">Takes 10 seconds. No signup needed.</p>
+              <p className="mt-2 text-sm text-slate-600">Used to improve visibility across search and AI answers</p>
               <article className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-6">
                 <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
                   <div>
-                    <p className="text-2xl font-semibold leading-tight text-slate-900">Competing pages</p>
+                    <p className="text-2xl font-semibold leading-tight text-slate-900">Pages outranking you</p>
                     <div className="mt-4 space-y-3 text-sm text-slate-700">
                       <p className="flex items-center justify-between"><span>northbridgelegal.com</span><span className="font-semibold">39</span></p>
                       <p className="flex items-center justify-between"><span>clearpathfamily.co.uk</span><span className="font-semibold">12</span></p>
                       <p className="flex items-center justify-between"><span>harborandrowe.com</span><span className="font-semibold">3</span></p>
                     </div>
                     <button className="mt-6 w-full rounded-xl bg-[linear-gradient(135deg,#4f46e5,#6d28d9)] px-5 py-3 text-base font-semibold text-white">
-                      View full audit
+                      See full report
                     </button>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -209,13 +209,13 @@ export default function HomePage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
                 </div>
                 <p className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
-                  EXAMPLE LIVE AUDIT
+                  REAL AUDIT PREVIEW
                 </p>
               </div>
 
               <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-                  <p className="text-xs font-medium text-indigo-700">Live scan preview. Full results after scan.</p>
+                  <p className="text-xs font-medium text-indigo-700">Running live scan. Full report ready after.</p>
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
                     <div className="h-full w-1/2 rounded-full bg-indigo-500" />
                   </div>
