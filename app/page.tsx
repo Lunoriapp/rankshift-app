@@ -134,14 +134,14 @@ export default function HomePage() {
         <MarketingSiteHeader />
 
         <section id="scan-start" className="px-4 py-8 sm:px-8 lg:px-10 lg:pb-10 lg:pt-8">
-          <div className="max-w-[980px]">
+          <div className="max-w-[1180px]">
             <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
               AI SEO + LLM VISIBILITY AUDIT
             </p>
-            <h1 className="mt-4 max-w-[22ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:text-4xl lg:text-6xl">
+            <h1 className="mt-4 max-w-[980px] text-4xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:text-5xl lg:text-6xl">
               Why your page is not showing in ChatGPT, Google AI, or search
             </h1>
-            <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
+            <p className="mt-3 max-w-[720px] text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
               Run a live scan and see exactly what is blocking your rankings, AI visibility, and internal links. Get clear fixes you can act on straight away.
             </p>
           </div>
