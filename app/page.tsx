@@ -137,15 +137,13 @@ export default function HomePage() {
           <div className="grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
             <div className="max-w-[560px]">
               <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
-                AI-powered SEO audit
+                AI SEO + LLM VISIBILITY AUDIT
               </p>
               <h1 className="mt-4 max-w-[17ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:max-w-[18ch] sm:text-4xl lg:text-6xl">
-                See why your page isn&apos;t showing in{" "}
-                <span className="text-blue-600">Google</span> and{" "}
-                <span className="text-indigo-600">AI results</span>
+                Find out why your page is invisible in Google and AI answers
               </h1>
               <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
-                Run a focused scan to find missed visibility, priority fixes, and internal links you can ship straight away.
+                Scan your page and get clear fixes for rankings, AI visibility, and internal links. See what is holding you back and what to fix first.
               </p>
               <div className="mt-5">
                 <AuditForm
@@ -155,17 +153,18 @@ export default function HomePage() {
                   showHighlights={false}
                 />
               </div>
+              <p className="mt-2 text-sm text-slate-600">Takes 10 seconds. No signup needed.</p>
               <article className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-6">
                 <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
                   <div>
-                    <p className="text-2xl font-semibold leading-tight text-slate-900">Top Competitors</p>
+                    <p className="text-2xl font-semibold leading-tight text-slate-900">Competing pages</p>
                     <div className="mt-4 space-y-3 text-sm text-slate-700">
                       <p className="flex items-center justify-between"><span>northbridgelegal.com</span><span className="font-semibold">39</span></p>
                       <p className="flex items-center justify-between"><span>clearpathfamily.co.uk</span><span className="font-semibold">12</span></p>
                       <p className="flex items-center justify-between"><span>harborandrowe.com</span><span className="font-semibold">3</span></p>
                     </div>
                     <button className="mt-6 w-full rounded-xl bg-[linear-gradient(135deg,#4f46e5,#6d28d9)] px-5 py-3 text-base font-semibold text-white">
-                      View full report
+                      View full audit
                     </button>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -197,12 +196,8 @@ export default function HomePage() {
                   </div>
                 </div>
               </article>
-              <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-600">✓</span>
-                Works on any website
-              </div>
-              <p className="mt-3 text-sm text-slate-600 sm:text-base">
-                Built for <span className="font-semibold text-indigo-600">modern search and AI</span>
+              <p className="mt-4 text-sm text-slate-600 sm:text-base">
+                See where competitors are winning and how to close the gap.
               </p>
             </div>
 
@@ -214,13 +209,13 @@ export default function HomePage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
                 </div>
                 <p className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
-                  Example audit result
+                  EXAMPLE LIVE AUDIT
                 </p>
               </div>
 
               <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-                  <p className="text-xs font-medium text-indigo-700">Preview only · final results generated after your live scan</p>
+                  <p className="text-xs font-medium text-indigo-700">Live scan preview. Full results after scan.</p>
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
                     <div className="h-full w-1/2 rounded-full bg-indigo-500" />
                   </div>
@@ -282,6 +277,9 @@ export default function HomePage() {
               </div>
             </aside>
           </div>
+          <p className="mt-6 text-sm text-slate-600 sm:text-base">
+            Built for modern search and AI. Get priority fixes, internal links, and visibility gains you can act on immediately.
+          </p>
         </section>
 
         <section className="border-t border-slate-100 px-6 py-8 sm:px-8 lg:px-10 lg:py-10">
