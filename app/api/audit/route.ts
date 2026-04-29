@@ -18,6 +18,15 @@ interface AuditRequestBody {
   competitorUrl?: unknown;
 }
 
+interface InternalLinkOpportunityLike {
+  sourceUrl: string;
+  targetUrl: string;
+  suggestedAnchor: string | null;
+  rewriteSuggestion?: string | null;
+  confidenceScore: number;
+  matchedSnippet: string;
+}
+
 function jsonNoStore(body: unknown, init?: ResponseInit): NextResponse {
   const headers = new Headers(init?.headers);
   headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
@@ -55,6 +64,124 @@ function getErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function normalizeComparableUrl(value: string): string {
+  try {
+    const parsed = new URL(value);
+    const hostname = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+    const pathname = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+    return `${hostname}${pathname}`;
+  } catch {
+    return value.trim().toLowerCase();
+  }
+}
+
+function normalizeAnchorForDedupe(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function diceSimilarity(a: string, b: string): number {
+  if (!a || !b) {
+    return 0;
+  }
+
+  if (a === b) {
+    return 1;
+  }
+
+  const grams = (text: string): Map<string, number> => {
+    const map = new Map<string, number>();
+    const source = text.length >= 2 ? text : `${text} `;
+    for (let i = 0; i < source.length - 1; i += 1) {
+      const gram = source.slice(i, i + 2);
+      map.set(gram, (map.get(gram) ?? 0) + 1);
+    }
+    return map;
+  };
+
+  const aGrams = grams(a);
+  const bGrams = grams(b);
+  let intersection = 0;
+
+  for (const [gram, count] of aGrams.entries()) {
+    const bCount = bGrams.get(gram) ?? 0;
+    intersection += Math.min(count, bCount);
+  }
+
+  const aCount = [...aGrams.values()].reduce((sum, count) => sum + count, 0);
+  const bCount = [...bGrams.values()].reduce((sum, count) => sum + count, 0);
+  if (aCount + bCount === 0) {
+    return 0;
+  }
+
+  return (2 * intersection) / (aCount + bCount);
+}
+
+function sourceContainsAnchor(pageText: string, anchor: string): boolean {
+  const normalizedPage = normalizeAnchorForDedupe(pageText);
+  const normalizedAnchor = normalizeAnchorForDedupe(anchor);
+  return normalizedAnchor.length > 0 && normalizedPage.includes(normalizedAnchor);
+}
+
+function enforceSourceScopedOpportunityQuality<T extends InternalLinkOpportunityLike>(
+  opportunities: T[],
+  analysedPageUrl: string,
+  analysedPageText: string,
+): T[] {
+  const analysedComparable = normalizeComparableUrl(analysedPageUrl);
+
+  const sourceValidated = opportunities.filter((entry) => {
+    if (normalizeComparableUrl(entry.sourceUrl) !== analysedComparable) {
+      return false;
+    }
+
+    if (!entry.matchedSnippet || normalizeAnchorForDedupe(entry.matchedSnippet).length === 0) {
+      return false;
+    }
+
+    if (entry.suggestedAnchor) {
+      return sourceContainsAnchor(analysedPageText, entry.suggestedAnchor);
+    }
+
+    return true;
+  });
+
+  const byExactKey = new Map<string, T>();
+  for (const entry of sourceValidated) {
+    const normalizedAnchor = normalizeAnchorForDedupe(
+      entry.suggestedAnchor ?? entry.rewriteSuggestion ?? "rewrite",
+    );
+    const key = `${normalizedAnchor}|${normalizeComparableUrl(entry.targetUrl)}`;
+    const existing = byExactKey.get(key);
+    if (!existing || entry.confidenceScore > existing.confidenceScore) {
+      byExactKey.set(key, entry);
+    }
+  }
+
+  const exactDeduped = [...byExactKey.values()];
+  const similarityDeduped: T[] = [];
+
+  for (const entry of exactDeduped.sort((a, b) => b.confidenceScore - a.confidenceScore)) {
+    const entryAnchor = normalizeAnchorForDedupe(entry.suggestedAnchor ?? "");
+    const entryTarget = normalizeComparableUrl(entry.targetUrl);
+    const similarExists = similarityDeduped.some((kept) => {
+      const keptAnchor = normalizeAnchorForDedupe(kept.suggestedAnchor ?? "");
+      const keptTarget = normalizeComparableUrl(kept.targetUrl);
+      return keptTarget === entryTarget && diceSimilarity(keptAnchor, entryAnchor) >= 0.8;
+    });
+
+    if (!similarExists) {
+      similarityDeduped.push(entry);
+    }
+  }
+
+  return similarityDeduped;
 }
 
 async function resolveUser(request: NextRequest): Promise<{ id: string; token: string } | null> {
@@ -155,46 +282,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const sourceOnlyReport = findLinkOpportunities(sitePages, 16, {
         sourceUrl: normalizedUrl,
       });
-      const sourceOnlyKeys = new Set(
-        sourceOnlyReport.opportunities.map(
-          (entry) =>
-            `${entry.sourceUrl}|${entry.targetUrl}|${(entry.suggestedAnchor ?? entry.rewriteSuggestion ?? "rewrite").toLowerCase()}`,
-        ),
+      const sourceScoped = enforceSourceScopedOpportunityQuality(
+        sourceOnlyReport.opportunities,
+        normalizedUrl,
+        crawl.bodyText,
       );
-      const mergedRaw = [
-        ...sourceOnlyReport.opportunities,
-        ...fullReport.opportunities.filter(
-          (entry) =>
-            !sourceOnlyKeys.has(
-              `${entry.sourceUrl}|${entry.targetUrl}|${(entry.suggestedAnchor ?? entry.rewriteSuggestion ?? "rewrite").toLowerCase()}`,
-            ),
-        ),
-      ];
-      const bestByOpportunity = new Map<string, (typeof mergedRaw)[number]>();
-
-      for (const entry of mergedRaw) {
-        const anchorKey = (entry.suggestedAnchor ?? entry.rewriteSuggestion ?? "rewrite").toLowerCase();
-        const opportunityKey = `${entry.sourceUrl}|${entry.targetUrl}|${anchorKey}`;
-        const existing = bestByOpportunity.get(opportunityKey);
-
-        if (!existing || entry.confidenceScore > existing.confidenceScore) {
-          bestByOpportunity.set(opportunityKey, entry);
-        }
-      }
-
-      const merged = [...bestByOpportunity.values()]
+      const merged = [...sourceScoped]
         .sort((a, b) => b.confidenceScore - a.confidenceScore)
         .slice(0, 48);
 
-      crawl.internalLinking = {
+      const internalLinking = {
         ...fullReport,
         opportunities: merged,
       };
+      crawl.internalLinking = internalLinking;
       console.debug("[audit-api][internal-linking][summary]", {
         sitePagesDiscovered: sitePages.length,
-        opportunities: crawl.internalLinking.opportunities.length,
-        scannedPageCount: crawl.internalLinking.scannedPageCount,
-        diagnostics: crawl.internalLinking.diagnostics ?? null,
+        opportunities: internalLinking.opportunities.length,
+        scannedPageCount: internalLinking.scannedPageCount,
+        diagnostics: internalLinking.diagnostics ?? null,
       });
     } catch (error) {
       console.error("[audit-api][internal-linking][error]", {
