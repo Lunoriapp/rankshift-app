@@ -134,20 +134,19 @@ export default function HomePage() {
         <MarketingSiteHeader />
 
         <section id="scan-start" className="px-4 py-8 sm:px-8 lg:px-10 lg:pb-10 lg:pt-8">
-          <div className="max-w-[1180px]">
-            <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
-              AI SEO + LLM VISIBILITY AUDIT
-            </p>
-            <h1 className="mt-4 max-w-[980px] text-4xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:text-5xl lg:text-6xl">
-              Why your page is not showing in ChatGPT, Google AI, or search
-            </h1>
-            <p className="mt-3 max-w-[720px] text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
-              Run a live scan and see exactly what is blocking your rankings, AI visibility, and internal links. Get clear fixes you can act on straight away.
-            </p>
-          </div>
-
-          <div className="mt-8 grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
-            <div className="max-w-[560px]">
+          <div className="grid gap-8 lg:grid-cols-[1fr_0.95fr] lg:items-center">
+            <div className="max-w-[600px]">
+              <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
+                AI SEO + LLM VISIBILITY AUDIT
+              </p>
+              <h1 className="mt-4 max-w-[620px] text-4xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:mt-5 sm:text-5xl lg:text-6xl">
+                Why your page is not showing<br className="hidden sm:block" />
+                in ChatGPT, Google AI,<br className="hidden sm:block" />
+                or search
+              </h1>
+              <p className="mt-5 max-w-[560px] text-lg leading-7 text-slate-600">
+                Run a live scan and see exactly what is blocking your rankings, AI visibility, and internal links. Get clear fixes you can act on straight away. Built for modern search and AI. Get priority fixes, internal links, and visibility gains you can act on immediately.
+              </p>
               <AuditForm
                 buttonLabel="Run Free Scan"
                 className="max-w-[560px]"
@@ -202,86 +201,81 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="lg:pt-0">
-              <p className="mb-5 max-w-xl text-sm leading-6 text-slate-600 sm:text-[1.25rem] sm:leading-8">
-                Built for modern search and AI. Get priority fixes, internal links, and visibility gains you can act on immediately.
-              </p>
-              <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-4">
-                <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-2 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+            <aside className="lg:translate-y-8 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-4">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-2 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+                </div>
+                <p className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  REAL AUDIT PREVIEW
+                </p>
+              </div>
+
+              <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
+                  <p className="text-xs font-medium text-indigo-700">Running live scan. Full report ready after.</p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
+                    <div className="h-full w-1/2 rounded-full bg-indigo-500" />
                   </div>
-                  <p className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
-                    REAL AUDIT PREVIEW
-                  </p>
                 </div>
 
-                <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
-                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-                    <p className="text-xs font-medium text-indigo-700">Running live scan. Full report ready after.</p>
-                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
-                      <div className="h-full w-1/2 rounded-full bg-indigo-500" />
-                    </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Sample page format
+                    </p>
+                    <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950 sm:text-3xl">yourwebsite.com/page</p>
+                    <p className="mt-1 text-xs text-slate-500">Illustrative layout preview</p>
                   </div>
+                  <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl border-2 border-emerald-400 bg-emerald-50 text-slate-900 sm:h-20 sm:w-20 sm:rounded-2xl">
+                    <p className="text-2xl font-semibold leading-none sm:text-3xl">78</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700">Score</p>
+                  </div>
+                </div>
 
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                        Sample page format
-                      </p>
-                      <p className="mt-1 text-xl font-semibold tracking-tight text-slate-950 sm:text-3xl">yourwebsite.com/page</p>
-                      <p className="mt-1 text-xs text-slate-500">Illustrative layout preview</p>
+                <div className="grid gap-3 sm:grid-cols-4">
+                  {[
+                    ["Issues found", "24", "text-rose-600"],
+                    ["Critical", "7", "text-rose-600"],
+                    ["Links", "32", "text-indigo-600"],
+                    ["Potential lift", "+21", "text-emerald-600"],
+                  ].map(([label, value, valueColor]) => (
+                    <div key={label} className="rounded-xl border border-slate-200 px-3 py-3">
+                      <p className="text-xs font-medium text-slate-500">{label}</p>
+                      <p className={`mt-1 text-3xl font-semibold tracking-tight ${valueColor}`}>{value}</p>
                     </div>
-                    <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-xl border-2 border-emerald-400 bg-emerald-50 text-slate-900 sm:h-20 sm:w-20 sm:rounded-2xl">
-                      <p className="text-2xl font-semibold leading-none sm:text-3xl">78</p>
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-700">Score</p>
+                  ))}
+                </div>
+                <div className="hidden gap-3 sm:grid sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 p-3">
+                    <p className="text-sm font-semibold text-slate-800">Top issues</p>
+                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      {[
+                        "Title tag too long",
+                        "Missing meta description",
+                        "H1 tag missing",
+                        "Image missing ALT text",
+                      ].map((issue) => (
+                        <p key={issue} className="flex items-center gap-2">
+                          <span className="text-rose-500">△</span>
+                          {issue}
+                        </p>
+                      ))}
                     </div>
                   </div>
-
-                  <div className="grid gap-3 sm:grid-cols-4">
-                    {[
-                      ["Issues found", "24", "text-rose-600"],
-                      ["Critical", "7", "text-rose-600"],
-                      ["Links", "32", "text-indigo-600"],
-                      ["Potential lift", "+21", "text-emerald-600"],
-                    ].map(([label, value, valueColor]) => (
-                      <div key={label} className="rounded-xl border border-slate-200 px-3 py-3">
-                        <p className="text-xs font-medium text-slate-500">{label}</p>
-                        <p className={`mt-1 text-3xl font-semibold tracking-tight ${valueColor}`}>{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="hidden gap-3 sm:grid sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <p className="text-sm font-semibold text-slate-800">Top issues</p>
-                      <div className="mt-3 space-y-2 text-sm text-slate-600">
-                        {[
-                          "Title tag too long",
-                          "Missing meta description",
-                          "H1 tag missing",
-                          "Image missing ALT text",
-                        ].map((issue) => (
-                          <p key={issue} className="flex items-center gap-2">
-                            <span className="text-rose-500">△</span>
-                            {issue}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 p-3">
-                      <p className="text-sm font-semibold text-slate-800">Internal links to add</p>
-                      <div className="mt-3 space-y-2 text-sm text-slate-600">
-                        <p>Add from /blog/seo-tips to /seo-tools</p>
-                        <p>Add from /services/seo to /case-studies</p>
-                        <p className="pt-1 font-semibold text-indigo-600">View all link opportunities &rarr;</p>
-                      </div>
+                  <div className="rounded-xl border border-slate-200 p-3">
+                    <p className="text-sm font-semibold text-slate-800">Internal links to add</p>
+                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      <p>Add from /blog/seo-tips to /seo-tools</p>
+                      <p>Add from /services/seo to /case-studies</p>
+                      <p className="pt-1 font-semibold text-indigo-600">View all link opportunities &rarr;</p>
                     </div>
                   </div>
                 </div>
-              </aside>
-            </div>
+              </div>
+            </aside>
           </div>
         </section>
 
