@@ -22,14 +22,23 @@ function makeTarget(overrides) {
         }, existingInternalLinkTargets: [], existingInternalLinkEntries: [], inboundInternalLinkCount: 0, outboundInternalLinkCount: 0, commerciallyImportant: true, pageType: "service", indexable: true }, overrides);
 }
 function run() {
-    var _a, _b;
-    const rejected = ["bobs studio can", "dawson who can", "dawson on 01933"];
+    var _a, _b, _c;
+    const rejected = [
+        "bob s studio",
+        "bobs studio can",
+        "dawson who can",
+        "dawson on 01933",
+        "sculptures and his",
+        "in contemporary",
+    ];
     for (const anchor of rejected) {
         strict_1.default.equal((0, suggestAnchorText_1.isValidAnchor)(anchor), false, `Expected anchor to be rejected: ${anchor}`);
     }
     const accepted = [
+        "Bob’s studio",
         "contemporary sculptor",
         "bronze sculptures",
+        "sculpture commissions",
         "recruitment agency",
         "family mediation",
         "technical SEO audit",
@@ -67,6 +76,21 @@ function run() {
         sourcePageType: "profile",
     });
     strict_1.default.equal(sculptureSuggestion === null || sculptureSuggestion === void 0 ? void 0 : sculptureSuggestion.anchor, "bronze sculptures", `Expected bronze sculptures anchor, got: ${(_b = sculptureSuggestion === null || sculptureSuggestion === void 0 ? void 0 : sculptureSuggestion.anchor) !== null && _b !== void 0 ? _b : "null"}`);
+    const studioTarget = makeTarget({
+        url: "https://example.com/sculpture-studio",
+        title: "Sculpture Studio and Commissions",
+        h1: "Sculpture Studio",
+        h2s: ["Studio Profile"],
+        primaryTopic: "sculpture studio",
+        topicPhrases: [{ phrase: "sculpture studio", source: "title", weight: 1 }],
+        pageType: "profile",
+    });
+    const studioSentence = "Bob’s studio can be seen on this web site and showcases his contemporary works.";
+    const studioSuggestion = (0, suggestAnchorText_1.suggestAnchorText)(studioSentence, studioTarget, {
+        brandCandidates: ["bob dawson", "dawson"],
+        sourcePageType: "profile",
+    });
+    strict_1.default.equal(studioSuggestion === null || studioSuggestion === void 0 ? void 0 : studioSuggestion.anchor, "Bob’s studio", `Expected Bob’s studio anchor, got: ${(_c = studioSuggestion === null || studioSuggestion === void 0 ? void 0 : studioSuggestion.anchor) !== null && _c !== void 0 ? _c : "null"}`);
     console.log("anchor-pipeline tests passed");
 }
 run();

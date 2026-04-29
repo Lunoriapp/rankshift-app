@@ -40,14 +40,23 @@ function makeTarget(overrides: Partial<SitePageTopicProfile>): SitePageTopicProf
 }
 
 function run(): void {
-  const rejected = ["bobs studio can", "dawson who can", "dawson on 01933"];
+  const rejected = [
+    "bob s studio",
+    "bobs studio can",
+    "dawson who can",
+    "dawson on 01933",
+    "sculptures and his",
+    "in contemporary",
+  ];
   for (const anchor of rejected) {
     assert.equal(isValidAnchor(anchor), false, `Expected anchor to be rejected: ${anchor}`);
   }
 
   const accepted = [
+    "Bob’s studio",
     "contemporary sculptor",
     "bronze sculptures",
+    "sculpture commissions",
     "recruitment agency",
     "family mediation",
     "technical SEO audit",
@@ -96,6 +105,26 @@ function run(): void {
     sculptureSuggestion?.anchor,
     "bronze sculptures",
     `Expected bronze sculptures anchor, got: ${sculptureSuggestion?.anchor ?? "null"}`,
+  );
+
+  const studioTarget = makeTarget({
+    url: "https://example.com/sculpture-studio",
+    title: "Sculpture Studio and Commissions",
+    h1: "Sculpture Studio",
+    h2s: ["Studio Profile"],
+    primaryTopic: "sculpture studio",
+    topicPhrases: [{ phrase: "sculpture studio", source: "title", weight: 1 }],
+    pageType: "profile",
+  });
+  const studioSentence = "Bob’s studio can be seen on this web site and showcases his contemporary works.";
+  const studioSuggestion = suggestAnchorText(studioSentence, studioTarget, {
+    brandCandidates: ["bob dawson", "dawson"],
+    sourcePageType: "profile",
+  });
+  assert.equal(
+    studioSuggestion?.anchor,
+    "Bob’s studio",
+    `Expected Bob’s studio anchor, got: ${studioSuggestion?.anchor ?? "null"}`,
   );
 
   console.log("anchor-pipeline tests passed");
