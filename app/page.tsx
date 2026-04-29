@@ -140,9 +140,9 @@ export default function HomePage() {
                 AI SEO + LLM VISIBILITY AUDIT
               </p>
               <h1 className="mt-5 max-w-[15ch] text-4xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-                See why your page isn&apos;t showing in{" "}
-                <span className="text-blue-600">Google</span> and{" "}
-                <span className="text-indigo-600">AI results</span>
+                Why your page is not showing in&nbsp;
+                <span className="text-indigo-600">ChatGPT,</span> and{" "}
+                <span className="text-indigo-600">Google AI, or search</span>
               </h1>
               <p className="mt-5 max-w-[560px] text-lg leading-7 text-slate-600">
                 Run a focused scan to find missed visibility, priority fixes, and internal links you can ship straight away.
