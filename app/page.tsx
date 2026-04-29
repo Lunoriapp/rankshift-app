@@ -139,32 +139,35 @@ export default function HomePage() {
               <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
                 AI SEO + LLM VISIBILITY AUDIT
               </p>
-              <h1 className="mt-4 max-w-[620px] text-4xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:mt-5 sm:text-5xl lg:text-6xl">
-                Why your page is not showing<br className="hidden sm:block" />
-                in ChatGPT, Google AI,<br className="hidden sm:block" />
-                or search
+              <h1 className="mt-5 max-w-[13ch] text-4xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+                See why your page isn&apos;t showing in{" "}
+                <span className="text-blue-600">Google</span> and{" "}
+                <span className="text-indigo-600">AI results</span>
               </h1>
               <p className="mt-5 max-w-[560px] text-lg leading-7 text-slate-600">
-                Run a live scan and see exactly what is blocking your rankings, AI visibility, and internal links. Get clear fixes you can act on straight away. Built for modern search and AI. Get priority fixes, internal links, and visibility gains you can act on immediately.
+                Run a focused scan to find missed visibility, priority fixes, and internal links you can ship straight away.
               </p>
               <AuditForm
-                buttonLabel="Run Free Scan"
+                buttonLabel="Scan My Page"
                 className="max-w-[560px]"
-                helperText="Takes 10 seconds. No signup needed."
+                helperText="No need to include https://"
                 showHighlights={false}
               />
-              <p className="mt-2 text-sm text-slate-600">Used to improve visibility across search and AI answers</p>
+              <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-600">✓</span>
+                Works on any website
+              </div>
               <article className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-6">
                 <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
                   <div>
-                    <p className="text-2xl font-semibold leading-tight text-slate-900">Pages outranking you</p>
+                    <p className="text-2xl font-semibold leading-tight text-slate-900">Top Competitors</p>
                     <div className="mt-4 space-y-3 text-sm text-slate-700">
                       <p className="flex items-center justify-between"><span>northbridgelegal.com</span><span className="font-semibold">39</span></p>
                       <p className="flex items-center justify-between"><span>clearpathfamily.co.uk</span><span className="font-semibold">12</span></p>
                       <p className="flex items-center justify-between"><span>harborandrowe.com</span><span className="font-semibold">3</span></p>
                     </div>
                     <button className="mt-6 w-full rounded-xl bg-[linear-gradient(135deg,#4f46e5,#6d28d9)] px-5 py-3 text-base font-semibold text-white">
-                      See full report
+                      View full report
                     </button>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -197,7 +200,7 @@ export default function HomePage() {
                 </div>
               </article>
               <p className="mt-4 text-sm text-slate-600 sm:text-base">
-                See where competitors are winning and how to close the gap.
+                Built for <span className="font-semibold text-indigo-600">modern search and AI</span>
               </p>
             </div>
 
@@ -209,13 +212,13 @@ export default function HomePage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
                 </div>
                 <p className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600">
-                  REAL AUDIT PREVIEW
+                  EXAMPLE AUDIT RESULT
                 </p>
               </div>
 
               <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-                  <p className="text-xs font-medium text-indigo-700">Running live scan. Full report ready after.</p>
+                  <p className="text-xs font-medium text-indigo-700">Preview only · final results generated after your live scan</p>
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
                     <div className="h-full w-1/2 rounded-full bg-indigo-500" />
                   </div>
