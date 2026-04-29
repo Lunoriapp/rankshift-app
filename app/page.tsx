@@ -160,9 +160,9 @@ export default function HomePage() {
                   <div>
                     <p className="text-2xl font-semibold leading-tight text-slate-900">Top Competitors</p>
                     <div className="mt-4 space-y-3 text-sm text-slate-700">
-                      <p className="flex items-center justify-between"><span>vardags.com</span><span className="font-semibold">39</span></p>
-                      <p className="flex items-center justify-between"><span>quickie-divorce.com</span><span className="font-semibold">12</span></p>
-                      <p className="flex items-center justify-between"><span>stowefamilylaw.co.uk</span><span className="font-semibold">3</span></p>
+                      <p className="flex items-center justify-between"><span>northbridgelegal.com</span><span className="font-semibold">39</span></p>
+                      <p className="flex items-center justify-between"><span>clearpathfamily.co.uk</span><span className="font-semibold">12</span></p>
+                      <p className="flex items-center justify-between"><span>harborandrowe.com</span><span className="font-semibold">3</span></p>
                     </div>
                     <button className="mt-6 w-full rounded-xl bg-[linear-gradient(135deg,#4f46e5,#6d28d9)] px-5 py-3 text-base font-semibold text-white">
                       View full report
