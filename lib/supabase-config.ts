@@ -39,16 +39,11 @@ export function getSupabaseServerConfig(): {
   key: string;
 } {
   const url = getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL");
-  // Optional server-side hook: if no service-role key is configured, the app safely
-  // falls back to the public anon key so development remains deployable.
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  // Server-side privileged client must use the service-role key only.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!key) {
-    throw new Error(
-      "Supabase server key is not configured. Set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY.",
-    );
+    throw new Error("Supabase server key is not configured. Set SUPABASE_SERVICE_ROLE_KEY.");
   }
 
   return { url, key };
