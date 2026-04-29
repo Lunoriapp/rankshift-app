@@ -134,21 +134,76 @@ export default function HomePage() {
         <MarketingSiteHeader />
 
         <section id="scan-start" className="px-4 py-8 sm:px-8 lg:px-10 lg:pb-10 lg:pt-8">
-          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
-            <div className="max-w-[640px]">
-              <h1 className="mt-1 max-w-[20ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
-                See what&apos;s stopping your page from ranking
+          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
+            <div className="max-w-[560px]">
+              <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
+                AI-powered SEO audit
+              </p>
+              <h1 className="mt-4 max-w-[17ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:max-w-[18ch] sm:text-4xl lg:text-6xl">
+                See why your page isn&apos;t showing in{" "}
+                <span className="text-blue-600">Google</span> and{" "}
+                <span className="text-indigo-600">AI results</span>
               </h1>
               <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
-                Run a fast scan and get a clear action plan.
+                Run a focused scan to find missed visibility, priority fixes, and internal links you can ship straight away.
               </p>
-              <AuditForm
-                buttonLabel="Scan My Page"
-                className="max-w-[640px]"
-                helperText="No sign up. Results in under 60 seconds."
-                showHighlights={false}
-              />
-              <p className="mt-2 text-sm text-slate-600">No sign up. Results in under 60 seconds.</p>
+              <div className="mt-5">
+                <AuditForm
+                  buttonLabel="Scan My Page"
+                  className="max-w-[560px]"
+                  helperText="No need to include https://"
+                  showHighlights={false}
+                />
+              </div>
+              <article className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-6">
+                <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
+                  <div>
+                    <p className="text-2xl font-semibold leading-tight text-slate-900">Top Competitors</p>
+                    <div className="mt-4 space-y-3 text-sm text-slate-700">
+                      <p className="flex items-center justify-between"><span>vardags.com</span><span className="font-semibold">39</span></p>
+                      <p className="flex items-center justify-between"><span>quickie-divorce.com</span><span className="font-semibold">12</span></p>
+                      <p className="flex items-center justify-between"><span>stowefamilylaw.co.uk</span><span className="font-semibold">3</span></p>
+                    </div>
+                    <button className="mt-6 w-full rounded-xl bg-[linear-gradient(135deg,#4f46e5,#6d28d9)] px-5 py-3 text-base font-semibold text-white">
+                      View full report
+                    </button>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="space-y-5">
+                      <div className="h-px bg-slate-200" />
+                      <div className="h-px bg-slate-200" />
+                      <div className="h-px bg-slate-200" />
+                    </div>
+                    <div className="mt-4">
+                      <svg viewBox="0 0 420 170" className="h-auto w-full" fill="none" aria-hidden="true">
+                        <polyline points="0,115 60,135 120,25 180,126 240,120 300,125 360,135 420,135" stroke="#2EA8F5" strokeWidth="4" strokeLinecap="round" />
+                        <polyline points="0,125 60,145 120,128 180,140 240,140 300,137 360,132 420,135" stroke="#4BD3A6" strokeWidth="4" strokeLinecap="round" />
+                        <polyline points="0,145 60,150 120,144 180,150 240,144 300,150 360,150 420,150" stroke="#FF6A2D" strokeWidth="4" strokeLinecap="round" />
+                        {[0,60,120,180,240,300,360,420].map((x) => (
+                          <circle key={`b-${x}`} cx={x} cy={x===120?25:x===0?115:x===60?135:x===180?126:x===240?120:x===300?125:135} r="4" fill="#2EA8F5" />
+                        ))}
+                        {[0,60,120,180,240,300,360,420].map((x) => (
+                          <circle key={`g-${x}`} cx={x} cy={x===0?125:x===60?145:x===120?128:x===180?140:x===240?140:x===300?137:x===360?132:135} r="4" fill="#4BD3A6" />
+                        ))}
+                        {[0,60,120,180,240,300,360,420].map((x) => (
+                          <circle key={`o-${x}`} cx={x} cy={x===0?145:x===60?150:x===120?144:x===180?150:x===240?144:x===300?150:x===360?150:150} r="4" fill="#FF6A2D" />
+                        ))}
+                      </svg>
+                      <div className="mt-1 flex justify-between text-xs text-slate-500">
+                        <span>Apr 20</span>
+                        <span>Apr 26</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+              <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-600">✓</span>
+                Works on any website
+              </div>
+              <p className="mt-3 text-sm text-slate-600 sm:text-base">
+                Built for <span className="font-semibold text-indigo-600">modern search and AI</span>
+              </p>
             </div>
 
             <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-4">
@@ -165,9 +220,7 @@ export default function HomePage() {
 
               <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
-                  <p className="text-xs font-medium text-indigo-700">
-                    Example result
-                  </p>
+                  <p className="text-xs font-medium text-indigo-700">Preview only · final results generated after your live scan</p>
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
                     <div className="h-full w-1/2 rounded-full bg-indigo-500" />
                   </div>
@@ -228,26 +281,6 @@ export default function HomePage() {
                 </div>
               </div>
             </aside>
-          </div>
-        </section>
-
-        <section className="border-t border-slate-100 px-6 py-6 sm:px-8 lg:px-10">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Top competitors</p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-[0.9fr_1.1fr]">
-              <div className="space-y-3 text-sm text-slate-700">
-                <p className="flex items-center justify-between"><span>vardags.com</span><span className="font-semibold">39</span></p>
-                <p className="flex items-center justify-between"><span>quickie-divorce.com</span><span className="font-semibold">12</span></p>
-                <p className="flex items-center justify-between"><span>stowefamilylaw.co.uk</span><span className="font-semibold">3</span></p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="space-y-3">
-                  <div className="h-2 rounded bg-sky-300" style={{ width: "78%" }} />
-                  <div className="h-2 rounded bg-emerald-300" style={{ width: "34%" }} />
-                  <div className="h-2 rounded bg-orange-300" style={{ width: "18%" }} />
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 

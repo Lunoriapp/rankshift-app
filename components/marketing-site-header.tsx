@@ -78,10 +78,10 @@ export function MarketingSiteHeader() {
             Log in
           </Link>
           <Link
-            href="/start-free-audit"
+            href="/#scan-start"
             className="rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-16px_rgba(79,70,229,0.95)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
           >
-            Start Free Audit
+            Scan a Page
           </Link>
         </div>
 
@@ -135,10 +135,10 @@ export function MarketingSiteHeader() {
               Log in
             </Link>
             <Link
-              href="/start-free-audit"
+              href="/#scan-start"
               className="inline-flex justify-center rounded-xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_-16px_rgba(79,70,229,0.95)] transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
             >
-              Start Free Audit
+              Scan a Page
             </Link>
           </div>
         </nav>
