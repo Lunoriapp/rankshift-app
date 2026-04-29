@@ -139,7 +139,7 @@ export default function HomePage() {
               <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
                 AI SEO + LLM VISIBILITY AUDIT
               </p>
-              <h1 className="mt-5 max-w-[13ch] text-4xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+              <h1 className="mt-5 max-w-[15ch] text-4xl font-semibold leading-[1.05] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
                 See why your page isn&apos;t showing in{" "}
                 <span className="text-blue-600">Google</span> and{" "}
                 <span className="text-indigo-600">AI results</span>
