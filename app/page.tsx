@@ -134,43 +134,21 @@ export default function HomePage() {
         <MarketingSiteHeader />
 
         <section id="scan-start" className="px-4 py-8 sm:px-8 lg:px-10 lg:pb-10 lg:pt-8">
-          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
-            <div className="max-w-[560px]">
-              <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
-                AI-powered SEO audit
-              </p>
-              <h1 className="mt-4 max-w-[17ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:max-w-[18ch] sm:text-4xl lg:text-6xl">
+          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
+            <div className="max-w-[640px]">
+              <h1 className="mt-1 max-w-[20ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
                 See what&apos;s stopping your page from ranking
               </h1>
               <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
-                Run a fast scan and get a clear action plan with fixes you can apply straight away.
+                Run a fast scan and get a clear action plan.
               </p>
               <AuditForm
                 buttonLabel="Scan My Page"
-                className="max-w-[560px]"
+                className="max-w-[640px]"
                 helperText="No sign up. Results in under 60 seconds."
                 showHighlights={false}
               />
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500 sm:mt-4">
-                {[
-                  "Works on any website. Real issues. Clear fixes.",
-                ].map((item) => (
-                  <span key={item} className="inline-flex items-center gap-2">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50">
-                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-indigo-600" fill="none" aria-hidden="true">
-                        <path d="m6.5 12.5 3.2 3.2 7.8-7.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                    {item}
-                  </span>
-                ))}
-              </div>
-              <p className="mt-3 text-sm text-slate-600 sm:mt-4 sm:text-base">
-                <span className="font-semibold text-indigo-600">Fix the exact issues holding your page back</span>
-              </p>
-              <p className="mt-2 text-sm text-slate-600 sm:text-base">
-                Start with one page. See what needs fixing.
-              </p>
+              <p className="mt-2 text-sm text-slate-600">No sign up. Results in under 60 seconds.</p>
             </div>
 
             <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-4">
@@ -186,20 +164,14 @@ export default function HomePage() {
               </div>
 
               <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  See how your visibility improves over time
-                </p>
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
                   <p className="text-xs font-medium text-indigo-700">
-                    Example result - your page will show real issues and fixes like this
+                    Example result
                   </p>
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
                     <div className="h-full w-1/2 rounded-full bg-indigo-500" />
                   </div>
                 </div>
-                <p className="text-xs text-slate-500">
-                  Track issues, fixes, and internal links as your page improves
-                </p>
 
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -256,6 +228,26 @@ export default function HomePage() {
                 </div>
               </div>
             </aside>
+          </div>
+        </section>
+
+        <section className="border-t border-slate-100 px-6 py-6 sm:px-8 lg:px-10">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Top competitors</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-[0.9fr_1.1fr]">
+              <div className="space-y-3 text-sm text-slate-700">
+                <p className="flex items-center justify-between"><span>vardags.com</span><span className="font-semibold">39</span></p>
+                <p className="flex items-center justify-between"><span>quickie-divorce.com</span><span className="font-semibold">12</span></p>
+                <p className="flex items-center justify-between"><span>stowefamilylaw.co.uk</span><span className="font-semibold">3</span></p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="space-y-3">
+                  <div className="h-2 rounded bg-sky-300" style={{ width: "78%" }} />
+                  <div className="h-2 rounded bg-emerald-300" style={{ width: "34%" }} />
+                  <div className="h-2 rounded bg-orange-300" style={{ width: "18%" }} />
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

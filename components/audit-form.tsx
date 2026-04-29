@@ -144,14 +144,14 @@ export function AuditForm({
             spellCheck={false}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
-            className={`${compact ? "h-12 text-sm" : "h-12 text-sm sm:h-14"} w-full bg-white px-4 sm:px-5 text-slate-900 outline-none placeholder:text-slate-400`}
+            className={`${compact ? "h-12 text-sm" : "h-14 text-base sm:h-16 sm:text-lg"} w-full bg-white px-4 sm:px-5 text-slate-900 outline-none placeholder:text-slate-400`}
             required
           />
         </div>
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`${compact ? "h-12 px-6" : "h-12 px-6 sm:h-14 sm:px-7"} mt-2 w-full shrink-0 rounded-2xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] text-sm font-semibold text-white shadow-[0_12px_28px_-18px_rgba(67,56,202,0.8)] transition hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-0 sm:w-auto sm:rounded-l-none`}
+          className={`${compact ? "h-12 px-6" : "h-14 px-7 text-base sm:h-16 sm:px-9"} mt-2 w-full shrink-0 rounded-2xl bg-[linear-gradient(135deg,#4f46e5,#4338ca)] font-semibold text-white shadow-[0_12px_28px_-18px_rgba(67,56,202,0.8)] transition hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-0 sm:w-auto sm:rounded-l-none`}
         >
           {isSubmitting ? "Running..." : buttonLabel}
         </button>
