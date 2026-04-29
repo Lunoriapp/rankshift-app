@@ -1,0 +1,316 @@
+"use strict";
+"use client";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.InternalLinkOpportunityCards = InternalLinkOpportunityCards;
+const react_1 = require("react");
+const decode_html_entities_1 = require("@/lib/decode-html-entities");
+function effortLabel(opportunity) {
+    if (!opportunity.suggestedAnchor) {
+        return "Requires content update";
+    }
+    const words = opportunity.suggestedAnchor.trim().split(/\s+/).filter(Boolean).length;
+    if (words <= 2) {
+        return "Takes 2 minutes";
+    }
+    return "Quick win";
+}
+function whyThisWorks(opportunity) {
+    if (!opportunity.suggestedAnchor) {
+        return `This page already discusses a related topic, but it needs a clearer mention that naturally points to ${(0, decode_html_entities_1.decodeHtmlEntities)(opportunity.targetTitle)}.`;
+    }
+    return `This anchor matches the topic users are already reading about, so linking it to ${(0, decode_html_entities_1.decodeHtmlEntities)(opportunity.targetTitle)} strengthens relevance and makes the next step obvious.`;
+}
+function expectedOutcome(opportunity) {
+    if (opportunity.expectedOutcome) {
+        return (0, decode_html_entities_1.decodeHtmlEntities)(opportunity.expectedOutcome);
+    }
+    if (!opportunity.suggestedAnchor) {
+        return "Adds clearer topical context and gives crawlers a stronger path between related pages.";
+    }
+    return "Improves topical authority for the target page and helps search engines discover and prioritize it faster.";
+}
+function featuredActionSummary(opportunity) {
+    if (!opportunity.suggestedAnchor) {
+        return "Add one natural sentence and link it to the destination page.";
+    }
+    return `Add an internal link on "${(0, decode_html_entities_1.decodeHtmlEntities)(opportunity.suggestedAnchor)}" from ${compactUrl(opportunity.sourceUrl)} to ${compactUrl(opportunity.targetUrl)}.`;
+}
+function compactUrl(value) {
+    try {
+        const parsed = new URL(value);
+        const host = parsed.hostname.replace(/^www\./, "");
+        const path = parsed.pathname === "/" ? "" : parsed.pathname;
+        return `${host}${path}` || host;
+    }
+    catch (_a) {
+        return value;
+    }
+}
+function highlightAnchor(snippet, anchor) {
+    const normalizedSnippet = (0, decode_html_entities_1.decodeHtmlEntities)(snippet);
+    const normalizedAnchor = (0, decode_html_entities_1.decodeHtmlEntities)(anchor !== null && anchor !== void 0 ? anchor : "");
+    if (!normalizedAnchor) {
+        return normalizedSnippet;
+    }
+    const lowerSnippet = normalizedSnippet.toLowerCase();
+    const lowerAnchor = normalizedAnchor.toLowerCase();
+    const index = lowerSnippet.indexOf(lowerAnchor);
+    if (index < 0) {
+        return normalizedSnippet;
+    }
+    return (<>
+      {normalizedSnippet.slice(0, index)}
+      <mark className="rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-700">
+        {normalizedSnippet.slice(index, index + normalizedAnchor.length)}
+      </mark>
+      {normalizedSnippet.slice(index + normalizedAnchor.length)}
+    </>);
+}
+function seoPriority(opportunity) {
+    if (!opportunity.suggestedAnchor) {
+        return -30;
+    }
+    const anchor = normalizeAnchor(opportunity.suggestedAnchor);
+    const words = anchor.split(" ").filter(Boolean);
+    const serviceTerms = ["agency", "service", "services", "recruitment", "law", "mediation", "seo", "consultant", "specialist", "advice", "support"];
+    const hasServiceTerm = serviceTerms.some((term) => anchor.includes(term));
+    const isGeneric = ["click here", "read more", "learn more", "this page", "related page link"].includes(anchor);
+    const sourceTokens = normalizeAnchor(compactUrl(opportunity.sourceUrl)).split(" ").filter(Boolean);
+    const isBrandish = sourceTokens.length > 0 && sourceTokens.every((token) => anchor.includes(token));
+    const targetPath = (() => {
+        try {
+            return new URL(opportunity.targetUrl).pathname.toLowerCase();
+        }
+        catch (_a) {
+            return "";
+        }
+    })();
+    const isAboutOrHome = targetPath === "/" || /\/about(?:[-_/]|$)/i.test(targetPath);
+    const targetTokens = new Set(`${(0, decode_html_entities_1.decodeHtmlEntities)(opportunity.targetTitle)} ${targetPath}`
+        .toLowerCase()
+        .split(/[^a-z0-9]+/g)
+        .filter(Boolean));
+    const keywordOverlap = words.filter((token) => targetTokens.has(token)).length;
+    let score = 0;
+    score += hasServiceTerm ? 14 : 0;
+    score += words.length >= 2 && words.length <= 4 ? 10 : words.length === 5 ? 4 : -8;
+    score += keywordOverlap * 5;
+    score += opportunity.confidence === "High" ? 8 : opportunity.confidence === "Medium" ? 4 : 0;
+    score += Math.round(opportunity.confidenceScore * 0.08);
+    score -= isBrandish ? 24 : 0;
+    score -= isGeneric ? 22 : 0;
+    score -= isAboutOrHome ? 10 : 0;
+    return score;
+}
+function normalizeAnchor(value) {
+    return (0, decode_html_entities_1.decodeHtmlEntities)(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function InternalLinkOpportunityCards({ opportunities, maxItems, }) {
+    const [linkActionFeedback, setLinkActionFeedback] = (0, react_1.useState)({});
+    const [expandedReasons, setExpandedReasons] = (0, react_1.useState)({});
+    const [addedOpportunities, setAddedOpportunities] = (0, react_1.useState)({});
+    const [showLowConfidence, setShowLowConfidence] = (0, react_1.useState)(false);
+    const sorted = (0, react_1.useMemo)(() => {
+        const confidenceRank = { High: 3, Medium: 2, Low: 1 };
+        return [...opportunities].sort((a, b) => {
+            const seoA = seoPriority(a);
+            const seoB = seoPriority(b);
+            if (seoA !== seoB) {
+                return seoB - seoA;
+            }
+            if (confidenceRank[a.confidence] !== confidenceRank[b.confidence]) {
+                return confidenceRank[b.confidence] - confidenceRank[a.confidence];
+            }
+            return b.confidenceScore - a.confidenceScore;
+        });
+    }, [opportunities]);
+    const lowConfidence = sorted.filter((item) => item.confidence === "Low");
+    const primary = sorted.filter((item) => item.confidence !== "Low");
+    const visiblePool = showLowConfidence ? [...primary, ...lowConfidence] : primary;
+    const visible = typeof maxItems === "number" ? visiblePool.slice(0, maxItems) : visiblePool;
+    const featuredOpportunity = typeof maxItems === "number" && visible.length > 0 ? visible[0] : null;
+    (0, react_1.useEffect)(() => {
+        for (const opportunity of visible) {
+            console.log("FINAL ANCHOR:", opportunity.suggestedAnchor);
+        }
+    }, [visible]);
+    const copyTextToClipboard = async (value) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+        catch (_a) {
+            try {
+                const temporaryInput = document.createElement("textarea");
+                temporaryInput.value = value;
+                temporaryInput.setAttribute("readonly", "");
+                temporaryInput.style.position = "absolute";
+                temporaryInput.style.left = "-9999px";
+                document.body.appendChild(temporaryInput);
+                temporaryInput.select();
+                const copied = document.execCommand("copy");
+                document.body.removeChild(temporaryInput);
+                return copied;
+            }
+            catch (_b) {
+                return false;
+            }
+        }
+    };
+    const setLinkFeedbackWithReset = (id, message) => {
+        setLinkActionFeedback((previous) => (Object.assign(Object.assign({}, previous), { [id]: message })));
+        window.setTimeout(() => {
+            setLinkActionFeedback((previous) => {
+                const next = Object.assign({}, previous);
+                delete next[id];
+                return next;
+            });
+        }, 1800);
+    };
+    const handleCopyAnchor = async (id, anchor) => {
+        if (!anchor) {
+            setLinkFeedbackWithReset(id, "No anchor to copy");
+            return;
+        }
+        const copied = await copyTextToClipboard((0, decode_html_entities_1.decodeHtmlEntities)(anchor));
+        setLinkFeedbackWithReset(id, copied ? "Anchor copied" : "Copy failed");
+    };
+    const handleCopyTargetUrl = async (id, targetUrl) => {
+        const copied = await copyTextToClipboard(targetUrl);
+        setLinkFeedbackWithReset(id, copied ? "Target URL copied" : "Copy failed");
+    };
+    const handleMarkLinkAdded = (id) => {
+        setAddedOpportunities((previous) => (Object.assign(Object.assign({}, previous), { [id]: true })));
+        setLinkFeedbackWithReset(id, "Marked as added");
+    };
+    return (<div className="mt-5 grid gap-4">
+      {featuredOpportunity ? (<article className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700">
+                Best link to add now
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {featuredOpportunity.suggestedAnchor
+                ? `"${(0, decode_html_entities_1.decodeHtmlEntities)(featuredOpportunity.suggestedAnchor)}"`
+                : "Content improvement opportunity"}
+              </p>
+              <p className="mt-1 text-sm text-slate-700">{featuredActionSummary(featuredOpportunity)}</p>
+            </div>
+            <span className="inline-flex rounded-full border border-indigo-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-indigo-700">
+              {effortLabel(featuredOpportunity)}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+            <p>
+              <span className="font-semibold text-slate-900">Why this works:</span>{" "}
+              {whyThisWorks(featuredOpportunity)}
+            </p>
+            <p>
+              <span className="font-semibold text-slate-900">Expected outcome:</span>{" "}
+              {expectedOutcome(featuredOpportunity)}
+            </p>
+          </div>
+        </article>) : null}
+      {visible.map((opportunity) => (<article key={opportunity.id} className="rounded-xl border border-slate-200 bg-slate-50/60 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Link opportunity</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-700">
+                {effortLabel(opportunity)}
+              </span>
+              {opportunity.confidence ? (<span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${opportunity.confidence === "High"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : opportunity.confidence === "Medium"
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-slate-200 bg-slate-100 text-slate-700"}`}>
+                  {opportunity.confidence} confidence
+                </span>) : null}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
+            <div className="rounded-lg border border-indigo-200 bg-white px-3 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">1. Link this text</p>
+              {opportunity.suggestedAnchor ? (<p className="mt-2 inline-flex rounded-full border border-indigo-200 bg-[linear-gradient(135deg,#e0e7ff,#eef2ff)] px-3 py-1.5 text-sm font-semibold text-indigo-700">
+                  {(0, decode_html_entities_1.decodeHtmlEntities)(opportunity.suggestedAnchor)}
+                </p>) : (<p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700">
+                  Content improvement opportunity
+                </p>)}
+            </div>
+            <div className="hidden items-center justify-center text-slate-300 lg:flex" aria-hidden="true">
+              &rarr;
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">2. Found on this page</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{(0, decode_html_entities_1.decodeHtmlEntities)(opportunity.sourceTitle)}</p>
+              <p className="mt-1 text-xs text-slate-500 [overflow-wrap:anywhere]">{compactUrl(opportunity.sourceUrl)}</p>
+            </div>
+            <div className="hidden items-center justify-center text-slate-300 lg:flex" aria-hidden="true">
+              &rarr;
+            </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/45 px-3 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">3. Link it to this page</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{(0, decode_html_entities_1.decodeHtmlEntities)(opportunity.targetTitle)}</p>
+              <p className="mt-1 text-xs text-slate-500 [overflow-wrap:anywhere]">{compactUrl(opportunity.targetUrl)}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2.5">
+            <p className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-700">
+              <span className="font-semibold text-slate-900">Context match:</span>{" "}
+              {highlightAnchor(opportunity.matchedSnippet, opportunity.suggestedAnchor)}
+            </p>
+            {!opportunity.suggestedAnchor && opportunity.rewriteSuggestion ? (<p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm leading-6 text-amber-800">
+                <span className="font-semibold">What is missing:</span> This paragraph needs a clear reference to{" "}
+                {(0, decode_html_entities_1.decodeHtmlEntities)(opportunity.targetTitle)}.
+                <br />
+                <span className="font-semibold">How to fix it:</span> {opportunity.rewriteSuggestion}
+              </p>) : null}
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+              <p className="text-sm leading-6 text-slate-600">
+                <span className="font-semibold text-slate-900">Why this works:</span>{" "}
+                <span className={expandedReasons[opportunity.id]
+                ? ""
+                : "[display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden"}>
+                  {whyThisWorks(opportunity)}
+                </span>
+              </p>
+              {whyThisWorks(opportunity).length > 140 ? (<button type="button" onClick={() => setExpandedReasons((previous) => (Object.assign(Object.assign({}, previous), { [opportunity.id]: !previous[opportunity.id] })))} className="mt-1 text-xs font-semibold text-indigo-700 transition hover:text-indigo-800">
+                  {expandedReasons[opportunity.id] ? "Show less" : "Show more"}
+                </button>) : null}
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                <span className="font-semibold text-slate-900">Expected outcome:</span>{" "}
+                {expectedOutcome(opportunity)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {opportunity.suggestedAnchor ? (<button type="button" onClick={() => void handleCopyAnchor(opportunity.id, opportunity.suggestedAnchor)} className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+                Copy anchor
+              </button>) : opportunity.rewriteSuggestion ? (<button type="button" onClick={() => { var _a; return void handleCopyAnchor(opportunity.id, (_a = opportunity.rewriteSuggestion) !== null && _a !== void 0 ? _a : null); }} className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+                Copy rewrite
+              </button>) : null}
+            <button type="button" onClick={() => void handleCopyTargetUrl(opportunity.id, opportunity.targetUrl)} className="inline-flex rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+              Copy target URL
+            </button>
+            <button type="button" onClick={() => handleMarkLinkAdded(opportunity.id)} disabled={addedOpportunities[opportunity.id]} className="inline-flex rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70">
+              {addedOpportunities[opportunity.id] ? "Marked as added" : "Mark as added"}
+            </button>
+            {linkActionFeedback[opportunity.id] ? (<p className="text-xs font-semibold text-slate-600">{linkActionFeedback[opportunity.id]}</p>) : null}
+          </div>
+        </article>))}
+      {lowConfidence.length > 0 && typeof maxItems !== "number" ? (<div className="pt-1">
+          <button type="button" onClick={() => setShowLowConfidence((current) => !current)} className="text-xs font-semibold text-slate-600 transition hover:text-slate-800">
+            {showLowConfidence
+                ? "Hide low confidence suggestions"
+                : `Show low confidence suggestions (${lowConfidence.length})`}
+          </button>
+        </div>) : null}
+    </div>);
+}

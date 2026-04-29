@@ -68,6 +68,7 @@ const GENERIC_ANCHORS = new Set([
   "this page",
   "related page link",
 ]);
+const CONNECTOR_WORDS = new Set(["with", "of", "for", "in", "on", "and", "or", "to"]);
 
 const NOUNISH_TERMS = new Set([
   "service",
@@ -250,8 +251,27 @@ function scoreAgainstTarget(
   const headingMatch = overlap(candidateTokens, targetHeadingTokens);
 
   const words = candidate.split(/\s+/).filter(Boolean);
-  const lengthScore = words.length >= 2 && words.length <= 4 ? 1 : 0.8;
+  const lengthScore = words.length >= 2 && words.length <= 4 ? 1.2 : 0.5;
   const nounishScore = words.filter((word) => NOUNISH_TERMS.has(word)).length;
+  const connectorCount = words.filter((word) => CONNECTOR_WORDS.has(word)).length;
+  const overlapRatio = candidateTokens.size
+    ? overlap(candidateTokens, new Set([...targetTitleTokens, ...targetSlugTokens, ...targetHeadingTokens])) /
+      candidateTokens.size
+    : 0;
+  const exactPhraseBoost = (() => {
+    const normalizedCandidate = normalizeAnchor(candidate);
+    const title = normalizeAnchor(target.title);
+    const h1 = normalizeAnchor(target.h1);
+    const topic = normalizeAnchor(target.primaryTopic);
+    if (
+      normalizedCandidate === topic ||
+      normalizedCandidate === h1 ||
+      title.includes(normalizedCandidate)
+    ) {
+      return 6;
+    }
+    return 0;
+  })();
 
   const pageTypeBoost = (() => {
     const normalized = normalizeAnchor(candidate);
@@ -273,7 +293,17 @@ function scoreAgainstTarget(
     return 0.6;
   })();
 
-  return titleMatch * 6 + slugMatch * 7 + headingMatch * 5 + nounishScore * 2 + lengthScore * 2 + pageTypeBoost * 3;
+  return (
+    titleMatch * 6 +
+    slugMatch * 7 +
+    headingMatch * 5 +
+    nounishScore * 2 +
+    lengthScore * 2 +
+    pageTypeBoost * 3 +
+    overlapRatio * 8 +
+    exactPhraseBoost -
+    connectorCount * 2.5
+  );
 }
 
 function expandBrokenPhraseWithinSentence(sourceText: string, anchor: string): string | null {

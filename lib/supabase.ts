@@ -287,13 +287,8 @@ async function findOrCreateProject(input: {
   return data.id as string;
 }
 
-function createServerClient(accessToken?: string): SupabaseClient {
-  const { url, key } = accessToken
-    ? (() => {
-        const publicConfig = getSupabasePublicConfig();
-        return { url: publicConfig.url, key: publicConfig.anonKey };
-      })()
-    : getSupabaseServerConfig();
+function createAdminServerClient(): SupabaseClient {
+  const { url, key } = getSupabaseServerConfig();
 
   return createClient(url, key, {
     auth: {
@@ -301,32 +296,53 @@ function createServerClient(accessToken?: string): SupabaseClient {
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
-    global: accessToken
-      ? {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      : undefined,
+  });
+}
+
+function createUserScopedServerClient(accessToken: string): SupabaseClient {
+  const publicConfig = getSupabasePublicConfig();
+
+  return createClient(publicConfig.url, publicConfig.anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
   });
 }
 
 export function getSupabaseServerClient(accessToken?: string): SupabaseClient {
   if (accessToken) {
-    return createServerClient(accessToken);
+    return createUserScopedServerClient(accessToken);
   }
 
   if (cachedClient) {
     return cachedClient;
   }
 
-  cachedClient = createServerClient();
+  cachedClient = createAdminServerClient();
 
   return cachedClient;
 }
 
+export function getSupabaseAdminClient(): SupabaseClient {
+  if (cachedClient) {
+    return cachedClient;
+  }
+
+  cachedClient = createAdminServerClient();
+  return cachedClient;
+}
+
 export async function getUserFromAccessToken(token: string): Promise<User | null> {
-  const supabase = getSupabaseServerClient();
+  // Token verification should use anon + bearer token, not service role.
+  // This avoids requiring SUPABASE_SERVICE_ROLE_KEY for non-admin auth checks.
+  const supabase = createUserScopedServerClient(token);
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error) {
@@ -337,7 +353,8 @@ export async function getUserFromAccessToken(token: string): Promise<User | null
 }
 
 export async function createAuditRecord(input: CreateAuditInput): Promise<string> {
-  const supabase = getSupabaseServerClient(input.accessToken);
+  // Audit creation is a server-side write path and must use service role only.
+  const supabase = getSupabaseAdminClient();
 
   const projectId = await findOrCreateProject({
     userId: input.userId,

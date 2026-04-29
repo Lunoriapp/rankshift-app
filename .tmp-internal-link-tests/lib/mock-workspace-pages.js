@@ -1,0 +1,66 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.mockWorkspacePages = void 0;
+const workspace_page_list_1 = require("@/lib/workspace-page-list");
+exports.mockWorkspacePages = [
+    {
+        id: "148",
+        title: "Silver Splitter: Considering Divorce Later in Life",
+        url: "https://www.rankshift.ai/silver-splitter-considering-divorce/",
+        score: 34,
+        previousScore: 46,
+        issueCount: 11,
+        priority: (0, workspace_page_list_1.getWorkspacePagePriority)(34),
+        lastScanned: "2026-04-18T09:40:00.000Z",
+    },
+    {
+        id: "152",
+        title: "Divorce and Autism: Supporting Neurodivergent Families",
+        url: "https://www.rankshift.ai/neurodivergent-families-divorce-and-autism/",
+        score: 41,
+        previousScore: 37,
+        issueCount: 8,
+        priority: (0, workspace_page_list_1.getWorkspacePagePriority)(41),
+        lastScanned: "2026-04-18T12:20:00.000Z",
+    },
+    {
+        id: "133",
+        title: "Family Mediation for Complex Separations",
+        url: "https://www.rankshift.ai/family-mediation-complex-separations/",
+        score: 57,
+        previousScore: 62,
+        issueCount: 7,
+        priority: (0, workspace_page_list_1.getWorkspacePagePriority)(57),
+        lastScanned: "2026-04-17T16:10:00.000Z",
+    },
+    {
+        id: "121",
+        title: "Collaborative Law for High-Conflict Divorce",
+        url: "https://www.rankshift.ai/collaborative-law-high-conflict-divorce/",
+        score: 68,
+        previousScore: 64,
+        issueCount: 5,
+        priority: (0, workspace_page_list_1.getWorkspacePagePriority)(68),
+        lastScanned: "2026-04-18T08:05:00.000Z",
+    },
+    {
+        id: "117",
+        title: "How Private FDRs Help Resolve Financial Disputes",
+        url: "https://www.rankshift.ai/private-fdr-financial-disputes/",
+        score: 74,
+        previousScore: 71,
+        issueCount: 4,
+        priority: (0, workspace_page_list_1.getWorkspacePagePriority)(74),
+        lastScanned: "2026-04-18T07:45:00.000Z",
+    },
+    {
+        id: "101",
+        title: "International Divorce Strategy for UK-Based Families",
+        url: "https://www.rankshift.ai/international-divorce-strategy-uk-families/",
+        score: 86,
+        previousScore: 82,
+        issueCount: 2,
+        priority: (0, workspace_page_list_1.getWorkspacePagePriority)(86),
+        lastScanned: "2026-04-18T10:30:00.000Z",
+    },
+];
