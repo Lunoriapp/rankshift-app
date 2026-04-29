@@ -202,7 +202,7 @@ export default function HomePage() {
             </div>
 
             <div className="lg:mt-[74px]">
-              <p className="mb-5 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+              <p className="mb-5 max-w-xl text-sm leading-6 text-slate-600 sm:text-[1.25rem] sm:leading-8">
                 Built for modern search and AI. Get priority fixes, internal links, and visibility gains you can act on immediately.
               </p>
               <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-4">
