@@ -140,24 +140,20 @@ export default function HomePage() {
                 AI-powered SEO audit
               </p>
               <h1 className="mt-4 max-w-[17ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:max-w-[18ch] sm:text-4xl lg:text-6xl">
-                See why your page isn't showing in{" "}
-                <span className="text-blue-600">Google</span> and{" "}
-                <span className="text-indigo-600">AI results</span>
+                See what&apos;s stopping your page from ranking
               </h1>
               <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
-                Run a focused scan to find missed visibility, priority fixes, and internal links you can ship straight away.
+                Run a fast scan and get a clear action plan with fixes you can apply straight away.
               </p>
               <AuditForm
                 buttonLabel="Scan My Page"
                 className="max-w-[560px]"
-                helperText="No need to include https://"
+                helperText="No sign up. Results in under 60 seconds."
                 showHighlights={false}
               />
               <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500 sm:mt-4">
                 {[
-                  "No sign-up required",
-                  "Results in under 60 seconds",
-                  "Works on any website",
+                  "Works on any website. Real issues. Clear fixes.",
                 ].map((item) => (
                   <span key={item} className="inline-flex items-center gap-2">
                     <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50">
@@ -170,7 +166,10 @@ export default function HomePage() {
                 ))}
               </div>
               <p className="mt-3 text-sm text-slate-600 sm:mt-4 sm:text-base">
-                Built for <span className="font-semibold text-indigo-600">modern search and AI</span>
+                <span className="font-semibold text-indigo-600">Fix the exact issues holding your page back</span>
+              </p>
+              <p className="mt-2 text-sm text-slate-600 sm:text-base">
+                Start with one page. See what needs fixing.
               </p>
             </div>
 
@@ -187,14 +186,20 @@ export default function HomePage() {
               </div>
 
               <div className="space-y-3 p-2 pt-3 sm:space-y-4 sm:pt-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  See how your visibility improves over time
+                </p>
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2">
                   <p className="text-xs font-medium text-indigo-700">
-                    Preview only · final results generated after your live scan
+                    Example result - your page will show real issues and fixes like this
                   </p>
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-indigo-100">
                     <div className="h-full w-1/2 rounded-full bg-indigo-500" />
                   </div>
                 </div>
+                <p className="text-xs text-slate-500">
+                  Track issues, fixes, and internal links as your page improves
+                </p>
 
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -260,10 +265,10 @@ export default function HomePage() {
               Real example output
             </p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              See the kind of action Rankshift gives you
+              See the kind of action RankShift gives you
             </h2>
             <p className="mt-3 text-base leading-7 text-slate-600 sm:text-lg">
-              Not vague advice. A direct recommendation your team can review and implement.
+              Clear actions your team can review and implement straight away.
             </p>
           </div>
 

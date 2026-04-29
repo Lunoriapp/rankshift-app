@@ -137,7 +137,7 @@ export function AuditForm({
               }
             }}
             onBlur={handleBlur}
-            placeholder="Enter your website (e.g. yourwebsite.com)"
+            placeholder="Enter your page URL"
             inputMode="url"
             autoCapitalize="none"
             autoCorrect="off"
