@@ -11,26 +11,26 @@ interface RegressionCheckResult {
 }
 
 function buildSourceSnapshot(): SitePageSnapshot {
-  const sourceUrl = "https://spencerandjames.co.uk/services/recruitment";
+  const sourceUrl = "https://example-legal.co.uk/services/recruitment";
 
   return {
     url: sourceUrl,
-    title: "Recruitment Agency Services | Spencer & James",
+    title: "Recruitment Agency Services | Example Legal",
     description: "",
-    h1: "Spencer & James",
+    h1: "Example Legal",
     h2s: ["Recruitment Agency Services"],
     headings: [
-      { level: 1, text: "Spencer & James" },
+      { level: 1, text: "Example Legal" },
       { level: 2, text: "Recruitment Agency Services" },
     ],
     images: [],
     bodyText:
-      "Spencer & James are a unique recruitment agency, with extensive experience in the search and selection of quality candidates.",
+      "Example Legal are a unique recruitment agency, with extensive experience in the search and selection of quality candidates.",
     contentSections: [
       {
         label: "Introduction",
         type: "paragraph",
-        text: "Spencer & James are a unique recruitment agency, with extensive experience in the search and selection of quality candidates.",
+        text: "Example Legal are a unique recruitment agency, with extensive experience in the search and selection of quality candidates.",
       },
     ],
     contentDebug: {
@@ -40,7 +40,7 @@ function buildSourceSnapshot(): SitePageSnapshot {
       listItemCount: 0,
       extractedBlockCount: 1,
       firstExtractedTextChunks: [
-        "Spencer & James are a unique recruitment agency, with extensive experience in the search and selection of quality candidates.",
+        "Example Legal are a unique recruitment agency, with extensive experience in the search and selection of quality candidates.",
       ],
       fallbackStrategyUsed: false,
       headingCounts: {
@@ -50,21 +50,21 @@ function buildSourceSnapshot(): SitePageSnapshot {
         h4: 0,
       },
       headingTexts: {
-        h1: ["Spencer & James"],
+        h1: ["Example Legal"],
         h2: ["Recruitment Agency Services"],
         h3: [],
         h4: [],
       },
       hasMultipleVisibleH1: false,
       contextualBodyLinks: [],
-      blockedAnchorPhrases: ["spencer & james"],
+      blockedAnchorPhrases: ["example legal"],
     },
     existingInternalLinks: [
       {
         href: "/about-us",
         text: "About Us",
-        resolvedUrl: "https://spencerandjames.co.uk/about-us",
-        normalizedUrl: "https://spencerandjames.co.uk/about-us",
+        resolvedUrl: "https://example-legal.co.uk/about-us",
+        normalizedUrl: "https://example-legal.co.uk/about-us",
       },
     ],
     canonical: null,
@@ -128,18 +128,18 @@ function buildTargetSnapshot(
   };
 }
 
-export function runSpencerJamesRegressionCheck(): RegressionCheckResult {
+export function runRecruitmentRegressionCheck(): RegressionCheckResult {
   const source = buildSourceSnapshot();
   const servicesTarget = buildTargetSnapshot(
-    "https://spencerandjames.co.uk/recruitment-agency-services",
-    "Recruitment Agency Services | Spencer & James",
+    "https://example-legal.co.uk/recruitment-agency-services",
+    "Recruitment Agency Services | Example Legal",
     "Recruitment Agency Services",
     ["Candidate Search and Selection"],
   );
   const aboutTarget = buildTargetSnapshot(
-    "https://spencerandjames.co.uk/about-us",
-    "About Us | Spencer & James",
-    "About Spencer & James",
+    "https://example-legal.co.uk/about-us",
+    "About Us | Example Legal",
+    "About Example Legal",
     ["Our Story"],
   );
 
@@ -155,10 +155,10 @@ export function runSpencerJamesRegressionCheck(): RegressionCheckResult {
   );
   const hasBrandAnchorSuggestion = report.opportunities.some(
     (opportunity) =>
-      opportunity.suggestedAnchor?.toLowerCase().trim() === "spencer & james",
+      opportunity.suggestedAnchor?.toLowerCase().trim() === "example legal",
   );
   const headingPhraseSelected = report.opportunities.some((opportunity) =>
-    (opportunity.suggestedAnchor ?? "").toLowerCase().includes("spencer & james"),
+    (opportunity.suggestedAnchor ?? "").toLowerCase().includes("example legal"),
   );
 
   return {

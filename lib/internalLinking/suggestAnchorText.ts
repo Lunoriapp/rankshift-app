@@ -238,12 +238,7 @@ function tokenizeWithOriginalText(sourceText: string): Token[] {
 
 function repairCandidateAnchor(anchor: string): string {
   const repairedPossessive = restorePossessiveApostrophes(anchor);
-  return normalizeWhitespace(
-    repairedPossessive
-      .replace(/\bbob['’]?s\b/gi, "Bob’s")
-      .replace(/\bartist['’]?s\b/gi, "artist’s")
-      .replace(/\bcompany['’]?s\b/gi, "company’s"),
-  );
+  return normalizeWhitespace(repairedPossessive);
 }
 
 function extractCandidateNounPhrasesFromSentence(sourceText: string): string[] {

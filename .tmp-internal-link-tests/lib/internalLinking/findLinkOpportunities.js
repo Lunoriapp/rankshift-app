@@ -100,8 +100,7 @@ function shouldDebugAnchorExample(sourceTitle, targetTitle, contextText) {
         return false;
     }
     const haystack = `${sourceTitle} ${targetTitle} ${contextText}`.toLowerCase();
-    return (haystack.includes("spencer & james") ||
-        (haystack.includes("recruitment") && haystack.includes("agency")));
+    return haystack.includes("recruitment") && haystack.includes("agency");
 }
 function isAboutTarget(url) {
     try {

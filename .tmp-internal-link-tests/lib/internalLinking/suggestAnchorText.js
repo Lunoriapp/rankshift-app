@@ -178,10 +178,7 @@ function tokenizeWithOriginalText(sourceText) {
 }
 function repairCandidateAnchor(anchor) {
     const repairedPossessive = restorePossessiveApostrophes(anchor);
-    return (0, shared_1.normalizeWhitespace)(repairedPossessive
-        .replace(/\bbob['’]?s\b/gi, "Bob’s")
-        .replace(/\bartist['’]?s\b/gi, "artist’s")
-        .replace(/\bcompany['’]?s\b/gi, "company’s"));
+    return (0, shared_1.normalizeWhitespace)(repairedPossessive);
 }
 function extractCandidateNounPhrasesFromSentence(sourceText) {
     var _a, _b;
