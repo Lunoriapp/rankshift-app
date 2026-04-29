@@ -146,7 +146,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-8 grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
+          <div className="mt-8 grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
             <div className="max-w-[560px]">
               <AuditForm
                 buttonLabel="Run Free Scan"
@@ -202,7 +202,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div>
+            <div className="lg:pt-0">
               <p className="mb-5 max-w-xl text-sm leading-6 text-slate-600 sm:text-[1.25rem] sm:leading-8">
                 Built for modern search and AI. Get priority fixes, internal links, and visibility gains you can act on immediately.
               </p>
