@@ -134,25 +134,26 @@ export default function HomePage() {
         <MarketingSiteHeader />
 
         <section id="scan-start" className="px-4 py-8 sm:px-8 lg:px-10 lg:pb-10 lg:pt-8">
-          <div className="grid gap-5 sm:gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
+          <div className="max-w-[980px]">
+            <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
+              AI SEO + LLM VISIBILITY AUDIT
+            </p>
+            <h1 className="mt-4 max-w-[22ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:text-4xl lg:text-6xl">
+              Why your page is not showing in ChatGPT, Google AI, or search
+            </h1>
+            <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
+              Run a live scan and see exactly what is blocking your rankings, AI visibility, and internal links. Get clear fixes you can act on straight away.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-8 lg:grid-cols-[1.02fr_0.98fr] lg:items-start">
             <div className="max-w-[560px]">
-              <p className="inline-flex rounded-full bg-indigo-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">
-                AI SEO + LLM VISIBILITY AUDIT
-              </p>
-              <h1 className="mt-4 max-w-[17ch] text-3xl font-semibold leading-[1.1] tracking-tight text-slate-950 sm:mt-5 sm:max-w-[18ch] sm:text-4xl lg:text-6xl">
-                Why your page is not showing in ChatGPT, Google AI, or search
-              </h1>
-              <p className="mt-3 max-w-xl text-base leading-6 text-slate-600 sm:mt-5 sm:text-xl sm:leading-8">
-                Run a live scan and see exactly what is blocking your rankings, AI visibility, and internal links. Get clear fixes you can act on straight away.
-              </p>
-              <div className="mt-5">
-                <AuditForm
-                  buttonLabel="Run Free Scan"
-                  className="max-w-[560px]"
-                  helperText="Takes 10 seconds. No signup needed."
-                  showHighlights={false}
-                />
-              </div>
+              <AuditForm
+                buttonLabel="Run Free Scan"
+                className="max-w-[560px]"
+                helperText="Takes 10 seconds. No signup needed."
+                showHighlights={false}
+              />
               <p className="mt-2 text-sm text-slate-600">Used to improve visibility across search and AI answers</p>
               <article className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_50px_-38px_rgba(15,23,42,0.45)] sm:p-6">
                 <div className="grid gap-5 sm:grid-cols-[0.9fr_1.1fr]">
@@ -201,7 +202,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="lg:mt-[74px]">
+            <div>
               <p className="mb-5 max-w-xl text-sm leading-6 text-slate-600 sm:text-[1.25rem] sm:leading-8">
                 Built for modern search and AI. Get priority fixes, internal links, and visibility gains you can act on immediately.
               </p>
