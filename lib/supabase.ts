@@ -361,7 +361,6 @@ export async function createAuditRecord(input: CreateAuditInput): Promise<string
     supabase,
     url: input.url,
   });
-  const savedReportName = `${buildProjectName(input.url)} audit`;
   const legacyInsert = await supabase
     .from("audits")
     .insert({
@@ -453,23 +452,8 @@ export async function createAuditRecord(input: CreateAuditInput): Promise<string
     }
   }
 
-  const { error: savedReportError } = await supabase
-    .from("saved_reports")
-    .insert({
-      audit_id: auditId,
-      user_id: input.userId,
-      report_name: savedReportName,
-    });
-
-  if (savedReportError) {
-    logSupabaseFailure(
-      { action: "insert_saved_report", table: "saved_reports", userId: input.userId },
-      savedReportError,
-    );
-    if (!isMissingTableError(savedReportError, "saved_reports")) {
-      throw new Error(savedReportError.message);
-    }
-  }
+  // saved_reports is optional in some deployments. Audit history for /reports is sourced
+  // from audits + fix states, so we skip this write when the table is not present.
 
   if (projectId) {
     const { error: usageEventError } = await supabase
@@ -739,9 +723,8 @@ export async function listSavedReportsByUser(
 
 export async function listCompetitorSnapshotsByAudit(
   auditId: string,
-  accessToken: string,
 ): Promise<CompetitorSnapshotRecord[]> {
-  const supabase = getSupabaseServerClient(accessToken);
+  const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("competitor_snapshots")
     .select(

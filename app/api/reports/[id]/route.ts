@@ -51,7 +51,8 @@ export async function GET(
 
     const history = await listAuditHistoryByUrl(auth.user.id, audit.url_key, auth.token);
     const fixStates = await listFixStatesByAudit(auth.user.id, audit.id, auth.token);
-    const competitorSnapshots = await listCompetitorSnapshotsByAudit(audit.id, auth.token);
+    // competitor_snapshots is server-only (service-role path), so ownership is validated above.
+    const competitorSnapshots = await listCompetitorSnapshotsByAudit(audit.id);
 
     return NextResponse.json({
       audit,
