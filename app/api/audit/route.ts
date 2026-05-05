@@ -5,6 +5,7 @@ import { buildAuditFixes } from "@/lib/audit-fixes";
 import type { CompetitorSnapshot } from "@/lib/competitor-comparison";
 import { crawlPage, crawlSiteForInternalLinking } from "@/lib/crawler";
 import { findLinkOpportunities } from "@/lib/internalLinking/findLinkOpportunities";
+import { normalizeUrlForCompare } from "@/lib/internalLinking/urlCompare";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { scoreAudit } from "@/lib/scorer";
 import { createAuditRecord, getUserFromAccessToken } from "@/lib/supabase";
@@ -67,14 +68,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 function normalizeComparableUrl(value: string): string {
-  try {
-    const parsed = new URL(value);
-    const hostname = parsed.hostname.replace(/^www\./i, "").toLowerCase();
-    const pathname = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-    return `${hostname}${pathname}`;
-  } catch {
-    return value.trim().toLowerCase();
-  }
+  return normalizeUrlForCompare(value) ?? value.trim().toLowerCase();
 }
 
 function normalizeAnchorForDedupe(value: string): string {
@@ -137,7 +131,14 @@ function enforceSourceScopedOpportunityQuality<T extends InternalLinkOpportunity
   const analysedComparable = normalizeComparableUrl(analysedPageUrl);
 
   const sourceValidated = opportunities.filter((entry) => {
-    if (normalizeComparableUrl(entry.sourceUrl) !== analysedComparable) {
+    const normalizedSource = normalizeComparableUrl(entry.sourceUrl);
+    const normalizedTarget = normalizeComparableUrl(entry.targetUrl);
+
+    if (normalizedSource !== analysedComparable) {
+      return false;
+    }
+
+    if (normalizedSource === normalizedTarget) {
       return false;
     }
 
@@ -181,7 +182,9 @@ function enforceSourceScopedOpportunityQuality<T extends InternalLinkOpportunity
     }
   }
 
-  return similarityDeduped;
+  return similarityDeduped.filter(
+    (entry) => normalizeComparableUrl(entry.sourceUrl) !== normalizeComparableUrl(entry.targetUrl),
+  );
 }
 
 async function resolveUser(request: NextRequest): Promise<{ id: string; token: string } | null> {

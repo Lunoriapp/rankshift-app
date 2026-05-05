@@ -24,7 +24,12 @@ function normalizePathname(pathname: string): string {
     .split("/")
     .map((segment) => safeDecode(segment))
     .join("/");
-  const compacted = decodedPath.replace(/\/{2,}/g, "/");
+
+  let compacted = decodedPath.replace(/\/{2,}/g, "/").toLowerCase();
+
+  // Treat index documents as the same page as their parent URL.
+  compacted = compacted.replace(/\/index\.html?$/i, "/");
+
   return compacted.replace(/\/+$/, "") || "/";
 }
 
@@ -75,7 +80,15 @@ export function resolveUrlAgainstPage(url: string, pageUrl: string): string | nu
   }
 }
 
-export function normalizeUrlForCompare(url: string, pageUrl?: string): string | null {
+interface NormalizeUrlForCompareOptions {
+  keepQueryParams?: boolean;
+}
+
+export function normalizeUrlForCompare(
+  url: string,
+  pageUrl?: string,
+  options: NormalizeUrlForCompareOptions = {},
+): string | null {
   const raw = url.trim();
 
   if (!raw) {
@@ -100,9 +113,22 @@ export function normalizeUrlForCompare(url: string, pageUrl?: string): string | 
     (parsed.protocol === "https:" && parsed.port === "443");
   const port = parsed.port && !hasDefaultPort ? `:${parsed.port}` : "";
   const pathname = normalizePathname(parsed.pathname);
-  const normalizedQuery = normalizeQuery(parsed.searchParams);
+  const normalizedQuery = options.keepQueryParams
+    ? normalizeQuery(parsed.searchParams)
+    : "";
 
   return `${host}${port}${pathname}${normalizedQuery ? `?${normalizedQuery}` : ""}`;
+}
+
+export function areEquivalentPageUrls(left: string, right: string): boolean {
+  const leftNormalized = normalizeUrlForCompare(left);
+  const rightNormalized = normalizeUrlForCompare(right);
+
+  if (!leftNormalized || !rightNormalized) {
+    return false;
+  }
+
+  return leftNormalized === rightNormalized;
 }
 
 export function normalizeAnchorTextForCompare(value: string): string {

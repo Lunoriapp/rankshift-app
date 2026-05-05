@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 
+import type { SitePageSnapshot } from "../crawler";
+import { findLinkOpportunities } from "./findLinkOpportunities";
 import { isValidAnchor, suggestAnchorText } from "./suggestAnchorText";
 import type { SitePageTopicProfile } from "./types";
+import { normalizeUrlForCompare } from "./urlCompare";
 
 function makeTarget(overrides: Partial<SitePageTopicProfile>): SitePageTopicProfile {
   return {
@@ -39,7 +42,85 @@ function makeTarget(overrides: Partial<SitePageTopicProfile>): SitePageTopicProf
   };
 }
 
+function makeSnapshot(url: string, title: string): SitePageSnapshot {
+  return {
+    url,
+    title,
+    description: "",
+    h1: title,
+    h2s: [title],
+    headings: [{ level: 1, text: title }],
+    images: [],
+    bodyText:
+      "This page contains enough content to pass the internal linking quality gate and be analysed for topic relationships.",
+    contentSections: [
+      {
+        label: "Body",
+        text: "This page contains enough content to pass the internal linking quality gate and be analysed for topic relationships.",
+        type: "paragraph",
+      },
+    ],
+    contentDebug: {
+      selectedContentSelector: "main",
+      totalHeadingCount: 1,
+      paragraphCount: 1,
+      listItemCount: 0,
+      extractedBlockCount: 1,
+      firstExtractedTextChunks: [
+        "This page contains enough content to pass the internal linking quality gate and be analysed for topic relationships.",
+      ],
+      fallbackStrategyUsed: false,
+      headingCounts: { h1: 1, h2: 0, h3: 0, h4: 0 },
+      headingTexts: { h1: [title], h2: [], h3: [], h4: [] },
+      hasMultipleVisibleH1: false,
+      contextualBodyLinks: [],
+      blockedAnchorPhrases: [],
+    },
+    existingInternalLinks: [],
+    canonical: null,
+    robots: null,
+    indexable: true,
+    statusCode: 200,
+    contentType: "text/html",
+    hasJsonLd: false,
+  };
+}
+
 function run(): void {
+  assert.equal(
+    normalizeUrlForCompare("http://www.bob-dawson.co.uk/"),
+    normalizeUrlForCompare("https://bob-dawson.co.uk/index.html"),
+    "Expected protocol/www/index variants to normalize to the same page",
+  );
+  assert.equal(
+    normalizeUrlForCompare("https://example.com/page/"),
+    normalizeUrlForCompare("https://example.com/page"),
+    "Expected trailing slash variants to normalize to the same page",
+  );
+  assert.equal(
+    normalizeUrlForCompare("https://example.com/index.htm"),
+    normalizeUrlForCompare("https://example.com/"),
+    "Expected /index.htm to normalize to root",
+  );
+  assert.equal(
+    normalizeUrlForCompare("https://example.com/page?a=1#part"),
+    normalizeUrlForCompare("https://example.com/page"),
+    "Expected query/hash variants to normalize to the same page",
+  );
+
+  const selfLinkReport = findLinkOpportunities(
+    [
+      makeSnapshot("https://www.bob-dawson.co.uk/", "Bob Dawson Sculptor"),
+      makeSnapshot("http://bob-dawson.co.uk/index.html", "Bob Dawson Sculptor"),
+    ],
+    12,
+  );
+  assert.equal(
+    selfLinkReport.opportunities.length,
+    0,
+    "Expected no suggestions when only self-equivalent URLs are present",
+  );
+
   const rejected = [
     "bob s studio",
     "bobs studio can",

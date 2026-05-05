@@ -5,7 +5,11 @@ import { scoreOpportunity } from "./scoreOpportunity";
 import type { OpportunityScore } from "./scoreOpportunity";
 import { buildSnippet, normalizePhrase, phraseWordOverlap, tokenize } from "./shared";
 import { isHumanQualityAnchor, isValidAnchor, suggestAnchorText } from "./suggestAnchorText";
-import { normalizeAnchorTextForCompare, normalizeUrlForCompare } from "./urlCompare";
+import {
+  areEquivalentPageUrls,
+  normalizeAnchorTextForCompare,
+  normalizeUrlForCompare,
+} from "./urlCompare";
 import type {
   InternalLinkDebugEntry,
   InternalLinkOpportunity,
@@ -66,6 +70,10 @@ function buildOpportunityId(sourceUrl: string, targetUrl: string, anchor: string
 
 function normalizeComparableUrl(url: string): string {
   return normalizeUrlForCompare(url) ?? url.trim().toLowerCase();
+}
+
+function buildComparablePairKey(sourceUrl: string, targetUrl: string): string {
+  return `${normalizeComparableUrl(sourceUrl)}|${normalizeComparableUrl(targetUrl)}`;
 }
 
 function inferBrandCandidates(pages: SitePageTopicProfile[]): Set<string> {
@@ -248,7 +256,7 @@ function getPairSkipReason(
   source: SitePageTopicProfile,
   target: SitePageTopicProfile,
 ): string | null {
-  if (source.url === target.url) {
+  if (areEquivalentPageUrls(source.url, target.url)) {
     return "Skipped because source and target are the same page.";
   }
 
@@ -696,7 +704,7 @@ function buildRelatedCandidates(
   pages: SitePageTopicProfile[],
 ): InternalLinkOpportunity[] {
   const isBroadlyEligible = (target: SitePageTopicProfile): boolean => {
-    if (source.url === target.url) {
+    if (areEquivalentPageUrls(source.url, target.url)) {
       return false;
     }
 
@@ -856,7 +864,7 @@ export function findLinkOpportunities(
       const alreadyLinked = sourceAlreadyLinksToTarget(source, target.url);
 
       if (skipReason) {
-        if (source.url === target.url) {
+        if (areEquivalentPageUrls(source.url, target.url)) {
           diagnostics.droppedByFilter.samePage += 1;
         } else if (alreadyLinked) {
           diagnostics.droppedByFilter.alreadyLinked += 1;
@@ -1041,7 +1049,9 @@ export function findLinkOpportunities(
         }
 
         const snippet = buildSnippet(winningCandidate.contextText, winningCandidate.anchor);
-        const key = `${source.url}|${target.url}|${normalizePhrase(winningCandidate.anchor)}`;
+        const key = `${buildComparablePairKey(source.url, target.url)}|${normalizePhrase(
+          winningCandidate.anchor,
+        )}`;
         const alreadyLinkedToTarget = sourceAlreadyLinksToTarget(source, target.url);
         const alreadyLinkedWithSameAnchor = sourceAlreadyLinksAnchorToTarget(
           source,
@@ -1209,7 +1219,7 @@ export function findLinkOpportunities(
       if (!matched) {
         const rewriteSuggestion = buildRewriteSuggestion(source, target);
         const rewriteStrength = rewriteStrengthForPair(source, target);
-        const rewriteKey = `${source.url}|${target.url}|rewrite`;
+        const rewriteKey = `${buildComparablePairKey(source.url, target.url)}|rewrite`;
 
         if (
           rewriteStrength &&
@@ -1273,7 +1283,7 @@ export function findLinkOpportunities(
       diagnostics.relatedCandidatesGenerated += relatedCandidates.length;
 
       for (const candidate of relatedCandidates) {
-        const key = `${candidate.sourceUrl}|${candidate.targetUrl}|related`;
+        const key = `${buildComparablePairKey(candidate.sourceUrl, candidate.targetUrl)}|related`;
 
         if (seen.has(key)) {
           diagnostics.duplicateCandidatesRemoved += 1;
@@ -1292,7 +1302,7 @@ export function findLinkOpportunities(
   const bestBySourceTarget = new Map<string, InternalLinkOpportunity>();
 
   for (const suggestion of suggestions) {
-    const key = `${suggestion.sourceUrl}|${suggestion.targetUrl}`;
+    const key = buildComparablePairKey(suggestion.sourceUrl, suggestion.targetUrl);
     const existing = bestBySourceTarget.get(key);
 
     if (!existing || suggestion.confidenceScore > existing.confidenceScore) {
@@ -1303,7 +1313,7 @@ export function findLinkOpportunities(
   const bestBySourceAnchor = new Map<string, InternalLinkOpportunity>();
 
   for (const suggestion of bestBySourceTarget.values()) {
-    const anchorKey = `${suggestion.sourceUrl}|${
+    const anchorKey = `${normalizeComparableUrl(suggestion.sourceUrl)}|${
       hasUsableAnchor(suggestion.suggestedAnchor)
         ? normalizePhrase(suggestion.suggestedAnchor)
         : normalizePhrase(suggestion.rewriteSuggestion ?? `rewrite-${suggestion.targetUrl}`)
@@ -1345,6 +1355,11 @@ export function findLinkOpportunities(
     return b.confidenceScore - a.confidenceScore;
   });
   const filteredByExistingLinks = sorted.filter((suggestion) => {
+    if (areEquivalentPageUrls(suggestion.sourceUrl, suggestion.targetUrl)) {
+      diagnostics.droppedByFilter.samePage += 1;
+      return false;
+    }
+
     const sourceProfile = sourceProfileByUrl.get(normalizeComparableUrl(suggestion.sourceUrl));
 
     if (!sourceProfile) {
@@ -1422,7 +1437,7 @@ export function findLinkOpportunities(
 
     for (const source of topicProfiles) {
       for (const target of topicProfiles) {
-        if (source.url === target.url || sourceAlreadyLinksToTarget(source, target.url)) {
+        if (areEquivalentPageUrls(source.url, target.url) || sourceAlreadyLinksToTarget(source, target.url)) {
           continue;
         }
 
@@ -1545,7 +1560,7 @@ export function findLinkOpportunities(
     for (const source of topicProfiles) {
       for (const target of topicProfiles) {
         if (
-          source.url === target.url ||
+          areEquivalentPageUrls(source.url, target.url) ||
           sourceAlreadyLinksToTarget(source, target.url) ||
           !hasStrongSourceTargetTopicFit(source, target)
         ) {
